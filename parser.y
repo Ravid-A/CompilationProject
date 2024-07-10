@@ -9,15 +9,28 @@ program: function
 int yylex();
 void yyerror(const char* s);
 
+typedef struct args
+{
+    char **args;
+    int count;
+} args;
+
 typedef struct node
 {
 	char *token;
-	struct node *left;
-	struct node *right;
+	struct node **children;
+    int children_count;
 } node;
 
-node *mknode(char *token, node *left, node *right);
-void printtree(node *tree);
+node *mknode(char *token);
+
+void add_child(node *parent, node *child);
+void add_args(args *a, char *arg);
+void add_args_to_node(node *parent, char *type, args *a);
+
+void printtree(node *tree, int indent);
+
+void printParen(int indent);    
 
 typedef enum { false, true } bool;
 %}
@@ -28,6 +41,7 @@ typedef enum { false, true } bool;
     float rval;
     char cval;
     bool bval;
+    struct args *args;
     struct node *node;
 }
 
@@ -61,44 +75,73 @@ typedef enum { false, true } bool;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function privacy_of_function is_static return_type variable_type variable_declaration arguments arguments_variables
+%type <node> s function return_type arguments arguments_variables
+%type <sval> variable_type privacy_of_function is_static 
+%type <args> argument_declaration
 
 %%
 
-start: s {printf("ACC\n"); printtree($1); }
+start: s { printf("ACCEPT\n\n"); printtree($1, 0); }
 
-s: s function { $$ = mknode("CODE", $2, NULL); };
-   | function { $$ = mknode("CODE", $1, NULL); };
+s: s function {
+        add_child($$, $2);
+    };
+   | function {
+        $$ = mknode("CODE");
+        add_child($$, $1);
+   }
 
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static { $$ = mknode("Func", mknode($3, NULL, NULL), NULL); }
+function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static { 
+                                                                                                    $$ = mknode("FUNC");
+                                                                                                    add_child($$, mknode($3));
+                                                                                                    add_child($$, mknode($7));
+                                                                                                    add_child($$, mknode($1));
+                                                                                                    add_child($$, $5);
+                                                                                                    add_child($$, $2);
+                                                                                                }
 
-privacy_of_function: PUBLIC | PRIVATE;
+privacy_of_function: PUBLIC { $$ = "PUBLIC"; } 
+                     | PRIVATE { $$ = "PRIVATE"; };
 
-is_static: ':' STATIC 
-            | /* empty */
+is_static: ':' STATIC { $$ = "STATIC"; }
+            | { $$ = "NON_STATIC"; }
             ;
 
-return_type: variable_type | VOID;
+return_type: variable_type  { 
+                                $$ = mknode("RET");
+                                add_child($$, mknode($1)); 
+                            };
+            | VOID { 
+                    $$ = mknode("RETURN");
+                    add_child($$, mknode("VOID")); 
+                };
 
-variable_type: INT |
-               CHAR |
-               FLOAT |
-               DOUBLE |
-               STRING |
-               PTR_INT |
-               PTR_DOUBLE |
-               PTR_FLOAT |
-               PTR_CHAR;
+variable_type: INT { $$ = "INT"; } |
+               CHAR { $$ = "CHAR"; } |
+               FLOAT { $$ = "FLOAT"; } |
+               DOUBLE { $$ = "DOUBLE"; } |
+               STRING { $$ = "STRING"; } |
+                BOOL { $$ = "BOOL"; } |
+               PTR_INT { $$ = "PTR_INT"; } |
+               PTR_DOUBLE { $$ = "PTR_DOUBLE"; } |
+               PTR_FLOAT { $$ = "PTR_FLOAT"; } |
+               PTR_CHAR { $$ = "PTR_CHAR"; } ;
 
-arguments: ARGS arguments_variables 
-               | /* empty */
+arguments: ARGS arguments_variables { $$ = $2; }
+               | { 
+                    $$ = mknode("ARGS"); 
+                    add_child($$, mknode("NONE"));
+                 };
                ;
 
-arguments_variables: arguments_variables SEMICOL variable_type ':' variable_declaration
-            | variable_type ':' variable_declaration;
+arguments_variables: arguments_variables SEMICOL variable_type ':' argument_declaration {  add_args_to_node($$, $3, $5); }
+            | variable_type ':' argument_declaration { 
+                                                        $$ = mknode("ARGS");
+                                                        add_args_to_node($$, $1, $3);
+                                                     };                  
 
-variable_declaration: variable_declaration COMMA IDENTIFIER
-                      | IDENTIFIER;
+argument_declaration: argument_declaration COMMA IDENTIFIER { add_args($$, $3); }
+                      | IDENTIFIER { add_args($$, $1); }
 
 %%
 
@@ -117,25 +160,95 @@ void yyerror(const char* s)
     exit(1);
 }
 
-node *mknode(char *token, node *left, node *right)
+node *mknode(char *token)
 {
     node *newnode = (node*)malloc(sizeof(node));
     char *newstr = (char*)malloc(sizeof(token) + 1);
     strcpy(newstr,token);
-    newnode->left = left;
-    newnode->right = right;
     newnode->token = newstr;
+    newnode->children = NULL;
+    newnode->children_count = 0;
     return newnode;
 }
 
-void printtree(node *tree)
+void add_child(node *parent, node *child)
+{
+    if(parent->children_count == 0)
+    {
+        parent->children = (node**)malloc(sizeof(node*));
+    }
+    else
+    {
+        parent->children = (node**)realloc(parent->children, sizeof(node*) * (parent->children_count + 1));
+    }
+
+    parent->children[parent->children_count] = child;
+    parent->children_count++;
+}
+
+void add_args(args *a, char *arg)
+{
+    char* newstr = (char*)malloc(sizeof(arg) + 1);
+    strcpy(newstr, arg);
+
+    if(a->count == 0)
+    {
+        a->args = (char**)malloc(sizeof(char*));
+    }
+    else
+    {
+        a->args = (char**)realloc(a->args, sizeof(char*) * (a->count + 1));
+    }
+
+    a->args[a->count] = (char*)malloc(sizeof(newstr) + 1);
+    strcpy(a->args[a->count], newstr);
+    a->count++;
+}
+
+void add_args_to_node(node *parent, char *type, args *a)
+{
+    node *newnode = mknode(type);
+    add_child(parent, newnode);
+
+    for(int i = 0; i < a->count; i++)
+    {
+        node *arg = mknode(a->args[i]);
+        add_child(newnode, arg);
+    }
+}
+
+void printtree(node *tree, int indent)
 {
     if(!tree)
         return;
 
+    bool print_paren = false;
+
+    printParen(indent);
+
+    print_paren = tree->children_count > 0;
+
+    if(print_paren)
+        printf("(");        
+
     printf("%s\n", tree->token);
-    if(tree->left)
-        printtree(tree->left);
-    if(tree->right)
-        printtree(tree->right);
+    
+    for(int i = 0; i < tree->children_count; i++)
+    {
+        printtree(tree->children[i], indent + 1);
+    }
+
+    if(print_paren)
+    {
+        printParen(indent);
+        printf(")\n");
+    }
+}
+
+void printParen(int indent)
+{
+    for(int i = 0; i < indent; i++)
+    {
+        printf(" \t");
+    }
 }
