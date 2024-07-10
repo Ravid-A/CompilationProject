@@ -32,6 +32,8 @@ void printtree(node *tree, int indent);
 
 void printParen(int indent);    
 
+node* current_function;
+
 typedef enum { false, true } bool;
 %}
 
@@ -75,7 +77,7 @@ typedef enum { false, true } bool;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables
+%type <node> s function return_type arguments arguments_variables body statment
 %type <sval> variable_type privacy_of_function is_static 
 %type <args> argument_declaration
 
@@ -91,19 +93,23 @@ s: s function {
         add_child($$, $1);
    }
 
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static { 
-                                                                                                    $$ = mknode("FUNC");
-                                                                                                    add_child($$, mknode($3));
-                                                                                                    add_child($$, mknode($7));
-                                                                                                    add_child($$, mknode($1));
-                                                                                                    add_child($$, $5);
-                                                                                                    add_child($$, $2);
-                                                                                                }
+function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments arguments_check is_static BLOCK_OPEN body BLOCK_CLOSE { 
+                                                                                                                                $$ = mknode("FUNC");
+                                                                                                                                current_function = $$;
+                                                                                                                                add_child($$, mknode($3));
+                                                                                                                                add_child($$, mknode($7));
+                                                                                                                                add_child($$, mknode($1));
+                                                                                                                                add_child($$, $5);
+                                                                                                                                add_child($$, $2);
+                                                                                                                                add_child($$, $9);
+                                                                                                                            };
 
 privacy_of_function: PUBLIC { $$ = "PUBLIC"; } 
                      | PRIVATE { $$ = "PRIVATE"; };
+                     | { yyerror("Privacy of a function must be provided: \"public\" or \"private\""); }
 
 is_static: ':' STATIC { $$ = "STATIC"; }
+            | ':' { yyerror("Static keyword must be provided if \":\" is written");}
             | { $$ = "NON_STATIC"; }
             ;
 
@@ -127,21 +133,30 @@ variable_type: INT { $$ = "INT"; } |
                PTR_FLOAT { $$ = "PTR_FLOAT"; } |
                PTR_CHAR { $$ = "PTR_CHAR"; } ;
 
+arguments_check: SEMICOL PAREN_CLOSE { yyerror("semicolon is not allowed before \")\""); }
+                | PAREN_CLOSE
+                | { yyerror("Arguments of a function must be closed with \")\"");};
+
 arguments: ARGS arguments_variables { $$ = $2; }
-               | { 
-                    $$ = mknode("ARGS"); 
-                    add_child($$, mknode("NONE"));
-                 };
+               | ARGS { yyerror("Arguments of a function must be provided if \"args>>\" is written");}
+               | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); }
                ;
 
 arguments_variables: arguments_variables SEMICOL variable_type ':' argument_declaration {  add_args_to_node($$, $3, $5); }
+            | arguments_variables SEMICOL { yyerror("Arguments of a function will be separated by a \";\" but no argument was provided after the semicolon"); }
             | variable_type ':' argument_declaration { 
                                                         $$ = mknode("ARGS");
                                                         add_args_to_node($$, $1, $3);
-                                                     };                  
+                                                     }
+            | variable_type argument_declaration { yyerror("Arguments of a certain type must be separated by a ':' like \"int: x\""); }   
 
 argument_declaration: argument_declaration COMMA IDENTIFIER { add_args($$, $3); }
                       | IDENTIFIER { add_args($$, $1); }
+
+body : statment { $$ = mknode("BODY"); add_child($$, $1); }
+        | { yyerror("Body of a function cannot be empty"); }
+
+statment: variable_type IDENTIFIER SEMICOL { $$ = mknode("VAR_DECL"); add_child($$, mknode($1)); add_child($$, mknode($2)); }
 
 %%
 
