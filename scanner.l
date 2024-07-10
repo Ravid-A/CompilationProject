@@ -56,6 +56,7 @@ void        { return VOID; }
 "-"         { return SUB; }
 "+"         { return ADD; }
 [.]+\*      { return MUL; }
+"%"         { return MOD; }  
 "&"[.]+     { return REF; }
 \*[.]+      { return DEREF; }
 
