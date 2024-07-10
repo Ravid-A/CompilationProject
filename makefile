@@ -52,6 +52,7 @@ $(YACC_OUT): $(YACC_SRC)
 clean:
 	rm -f $(EXEC) $(LEX_OUT) $(YACC_OUT) 
 
+# run the compiler
 run: $(EXEC)
 	./$(EXEC) < $(TEST_FILE) > output
 

@@ -57,8 +57,7 @@ void        { return VOID; }
 
 true|false      { yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
 {char}          { yylval.cval = yytext[1]; return LIT_CHAR; }
-{int_dec}       { yylval.ival = strtol(yytext, NULL, 10); return LIT_INT; }
-{int_hex}       { yylval.ival = strtol(yytext, NULL, 16); return LIT_INT; }
+{int}           { yylval.ival = atoi(yytext); return LIT_INT; }
 {real}          { yylval.rval = atof(yytext); return LIT_REAL; }
 {string}        { yylval.sval = strdup(yytext); return LIT_STRING; }
 {identifier}    { yylval.sval = strdup(yytext); return IDENTIFIER; }
