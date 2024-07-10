@@ -47,18 +47,18 @@ typedef enum { false, true } bool;
 
 %token <sval> IDENTIFIER LIT_STRING
 %token <ival> LIT_INT
-%token <rval> LIT_FLOAT LIT_DOUBLE
+%token <rval> LIT_REAL
 %token <cval> LIT_CHAR
 %token <bval> LIT_BOOL
 
 %token COMMENT_OPEN COMMENT_END
 %token REF DEREF
 %token SEMICOL COMMA STRLEN VAR
-%token ARGS PUBLIC PRIVATE STATIC RETURN 
+%token ARGS FUNCTION RETURN 
 %token AND EQ GRTR GRTR_EQ LESS LESS_EQ NOT NOT_EQ OR 
 %token BLOCK_OPEN BLOCK_CLOSE PAREN_OPEN PAREN_CLOSE INDEX_OPEN INDEX_CLOSE
-%token BOOL CHAR STRING INT FLOAT DOUBLE VOID NULL_TOKEN
-%token PTR_INT PTR_FLOAT PTR_DOUBLE PTR_CHAR
+%token BOOL CHAR STRING INT REAL VOID NULL_TOKEN
+%token PTR_INT PTR_REAL PTR_CHAR
 %token WHILE DO FOR
 %token IF ELSE
 
@@ -76,8 +76,8 @@ typedef enum { false, true } bool;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables body statment
-%type <sval> variable_type privacy_of_function is_static 
+%type <node> s function return_type arguments arguments_variables body 
+%type <sval> variable_type
 %type <args> argument_declaration
 
 %%
@@ -92,24 +92,13 @@ s: s function {
         add_child($$, $1);
    }
 
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN body BLOCK_CLOSE { 
+function: FUNCTION IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE ':' return_type BLOCK_OPEN body BLOCK_CLOSE { 
                                                                                                                                 $$ = mknode("FUNC");
-                                                                                                                                add_child($$, mknode($3));
-                                                                                                                                add_child($$, mknode($7));
-                                                                                                                                add_child($$, mknode($1));
-                                                                                                                                add_child($$, $5);
-                                                                                                                                add_child($$, $2);
+                                                                                                                                add_child($$, mknode($2));
+                                                                                                                                add_child($$, $4);
+                                                                                                                                add_child($$, $7);
                                                                                                                                 add_child($$, $9);
                                                                                                                             };
-
-privacy_of_function: PUBLIC { $$ = "PUBLIC"; } 
-                     | PRIVATE { $$ = "PRIVATE"; }
-                     | { yyerror("Privacy of a function must be provided: \"public\" or \"private\""); };
-
-is_static: ':' STATIC { $$ = "STATIC"; }
-            | ':' { yyerror("Static keyword must be provided if \":\" is written");}
-            | { $$ = "NON_STATIC"; }
-            ;
 
 return_type: variable_type  { 
                                 $$ = mknode("RET");
@@ -122,36 +111,32 @@ return_type: variable_type  {
 
 variable_type: INT { $$ = "INT"; } |
                CHAR { $$ = "CHAR"; } |
-               FLOAT { $$ = "FLOAT"; } |
-               DOUBLE { $$ = "DOUBLE"; } |
+               REAL { $$ = "REAL"; } |
                STRING { $$ = "STRING"; } |
-                BOOL { $$ = "BOOL"; } |
+               BOOL { $$ = "BOOL"; } |
                PTR_INT { $$ = "PTR_INT"; } |
-               PTR_DOUBLE { $$ = "PTR_DOUBLE"; } |
-               PTR_FLOAT { $$ = "PTR_FLOAT"; } |
+               PTR_REAL { $$ = "PTR_REAL"; } |
                PTR_CHAR { $$ = "PTR_CHAR"; } ;
 
-arguments: ARGS arguments_variables { $$ = $2; }
-               | ARGS { yyerror("Arguments of a function must be provided if \"args>>\" is written");}
+arguments: arguments_variables { $$ = $1; }
                | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); }
                ;
 
-arguments_variables: arguments_variables SEMICOL variable_type ':' argument_declaration {  add_args_to_node($$, $3, $5); }
+arguments_variables: arguments_variables SEMICOL ARGS argument_declaration ':' variable_type {  add_args_to_node($$, $6, $4); }
             | arguments_variables SEMICOL { yyerror("Arguments of a function will be separated by a \";\" but no argument was provided after the semicolon"); }
-            | variable_type ':' argument_declaration { 
+            | ARGS argument_declaration ':' variable_type { 
                                                         $$ = mknode("ARGS");
-                                                        add_args_to_node($$, $1, $3);
+                                                        add_args_to_node($$, $4, $2);
                                                      }
-            | variable_type argument_declaration { yyerror("Arguments of a certain type must be separated by a ':' like \"int: x\""); }   
+            | variable_type argument_declaration { yyerror("Arguments of a certain type must be separated by a ':' like \"x :int\""); }   
 
 argument_declaration: argument_declaration COMMA IDENTIFIER { add_args($$, $3); }
                       | IDENTIFIER { add_args($$, $1); }
 
-body : statment { $$ = mknode("BODY"); add_child($$, $1); }
-        | { yyerror("Body of a function cannot be empty"); }
 
-statment: variable_type IDENTIFIER SEMICOL { $$ = mknode("VAR_DECL"); add_child($$, mknode($1)); add_child($$, mknode($2)); }
-
+// body: anything that is inside the function
+body: { $$ = mknode("BODY"); add_child($$, mknode("NONE")); }
+    | body function { add_child($$, $2); }
 %%
 
 
@@ -182,6 +167,9 @@ node *mknode(char *token)
 
 void add_child(node *parent, node *child)
 {
+    if(!parent || !child)
+        return;
+
     if(parent->children_count == 0)
     {
         parent->children = (node**)malloc(sizeof(node*));

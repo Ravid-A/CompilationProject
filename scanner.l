@@ -10,8 +10,7 @@ int_dec     0|{NONZERO}{DIGIT}*
 int_hex     0(x|X){DIGIT_HEX}+
 int         (^{SIGN})?({int_hex}|{int_dec})
 ex_notation (e|E){int_dec}
-double      (^{SIGN})?({int_dec}?.{int_dec}|{int_dec}.{int_dec}?){ex_notation}?
-float       ({double}|{int}.)(f|F)
+real      (^{SIGN})?({int_dec}?.{int_dec}|{int_dec}.{int_dec}?){ex_notation}?
 string      \"[^\n"]*\"
 identifier  {LETTER}({CHARACHTER}|_)*
 
@@ -22,13 +21,11 @@ identifier  {LETTER}({CHARACHTER}|_)*
 bool        { return BOOL; }
 char        { return CHAR; }
 int         { return INT; }
-double      { return DOUBLE; }
-float       { return FLOAT; }
+real        { return REAL; }
 string      { return STRING; }
 null        { return NULL_TOKEN; }
 "int*"      { return PTR_INT; }
-"float*"    { return PTR_FLOAT; }
-"double*"   { return PTR_DOUBLE; }
+"real*"     { return PTR_REAL; }
 "char*"     { return PTR_CHAR; }
 var         { return VAR; }
 if          { return IF; }
@@ -36,10 +33,8 @@ else        { return ELSE; }
 while       { return WHILE; }
 do          { return DO; }
 for         { return FOR; }
-"args>>"    { return ARGS; }
-public      { return PUBLIC; }
-private     { return PRIVATE; }
-static      { return STATIC; }
+function    { return FUNCTION; }
+"arg->"     { return ARGS; }
 return      { return RETURN; }
 void        { return VOID; }
 
@@ -62,10 +57,9 @@ void        { return VOID; }
 
 true|false      { yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
 {char}          { yylval.cval = yytext[1]; return LIT_CHAR; }
-{int_dec}           { yylval.ival = strtol(yytext, NULL, 10); return LIT_INT; }
-{int_hex}           { yylval.ival = strtol(yytext, NULL, 16); return LIT_INT; }
-{double}        { yylval.rval = atof(yytext); return LIT_DOUBLE; }
-{float}         { yylval.rval = atof(yytext); return LIT_FLOAT; }
+{int_dec}       { yylval.ival = strtol(yytext, NULL, 10); return LIT_INT; }
+{int_hex}       { yylval.ival = strtol(yytext, NULL, 16); return LIT_INT; }
+{real}          { yylval.rval = atof(yytext); return LIT_REAL; }
 {string}        { yylval.sval = strdup(yytext); return LIT_STRING; }
 {identifier}    { yylval.sval = strdup(yytext); return IDENTIFIER; }
 
