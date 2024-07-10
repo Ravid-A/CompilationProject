@@ -30,9 +30,7 @@ void add_args_to_node(node *parent, char *type, args *a);
 
 void printtree(node *tree, int indent);
 
-void printParen(int indent);    
-
-node* current_function;
+void printParen(int indent);
 
 typedef enum { false, true } bool;
 %}
@@ -72,6 +70,7 @@ typedef enum { false, true } bool;
 %left LESS LESS_EQ GRTR GRTR_EQ
 %left ADD SUB
 %left MUL DIV
+%left MOD
 %right NOT
 %right DEREF
 %right REF
@@ -93,9 +92,8 @@ s: s function {
         add_child($$, $1);
    }
 
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments arguments_check is_static BLOCK_OPEN body BLOCK_CLOSE { 
+function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN body BLOCK_CLOSE { 
                                                                                                                                 $$ = mknode("FUNC");
-                                                                                                                                current_function = $$;
                                                                                                                                 add_child($$, mknode($3));
                                                                                                                                 add_child($$, mknode($7));
                                                                                                                                 add_child($$, mknode($1));
@@ -105,8 +103,8 @@ function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments argume
                                                                                                                             };
 
 privacy_of_function: PUBLIC { $$ = "PUBLIC"; } 
-                     | PRIVATE { $$ = "PRIVATE"; };
-                     | { yyerror("Privacy of a function must be provided: \"public\" or \"private\""); }
+                     | PRIVATE { $$ = "PRIVATE"; }
+                     | { yyerror("Privacy of a function must be provided: \"public\" or \"private\""); };
 
 is_static: ':' STATIC { $$ = "STATIC"; }
             | ':' { yyerror("Static keyword must be provided if \":\" is written");}
@@ -132,10 +130,6 @@ variable_type: INT { $$ = "INT"; } |
                PTR_DOUBLE { $$ = "PTR_DOUBLE"; } |
                PTR_FLOAT { $$ = "PTR_FLOAT"; } |
                PTR_CHAR { $$ = "PTR_CHAR"; } ;
-
-arguments_check: SEMICOL PAREN_CLOSE { yyerror("semicolon is not allowed before \")\""); }
-                | PAREN_CLOSE
-                | { yyerror("Arguments of a function must be closed with \")\"");};
 
 arguments: ARGS arguments_variables { $$ = $2; }
                | ARGS { yyerror("Arguments of a function must be provided if \"args>>\" is written");}
