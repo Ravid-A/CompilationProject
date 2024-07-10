@@ -16,8 +16,6 @@ string      \"[^\n"]*\"
 identifier  {LETTER}({CHARACHTER}|_)*
 
 %%
-[\t\s]      ;
-[ \n]       { yylineno++; }
 "/*"        { return COMMENT_OPEN; }
 "*/"        { return COMMENT_END; }
 
@@ -81,5 +79,7 @@ true|false      { yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
 "]"         { return INDEX_CLOSE; }
 "<-"        { return ASS; }
 
-.           { return yytext[0]; }
+[ \t\s]      { /* ignore whitespace */ };
+[ \n]        { yylineno++; }
+.            { return yytext[0]; }
 %%
