@@ -1,3 +1,7 @@
 y.tab.c
 lex.yy.c
 compiler
+
+# my doc files
+tree
+output

@@ -20,8 +20,6 @@ node *mknode(char *token, node *left, node *right);
 void printtree(node *tree);
 
 typedef enum { false, true } bool;
-
-node *root = NULL;
 %}
 
 %union {
@@ -30,6 +28,7 @@ node *root = NULL;
     float rval;
     char cval;
     bool bval;
+    struct node *node;
 }
 
 %token <sval> IDENTIFIER LIT_STRING
@@ -62,16 +61,16 @@ node *root = NULL;
 %right REF
 %right INDEX_OPEN
 
+%type <node> s function privacy_of_function is_static return_type variable_type variable_declaration arguments arguments_variables
+
 %%
 
+start: s {printf("ACC\n"); printtree($1); }
 
+s: s function { $$ = mknode("CODE", $2, NULL); };
+   | function { $$ = mknode("CODE", $1, NULL); };
 
-s: s function_tester
-   | function_tester; 
-
-function_tester : function
-
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static { //crete node }
+function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static { $$ = mknode("Func", mknode($3, NULL, NULL), NULL); }
 
 privacy_of_function: PUBLIC | PRIVATE;
 
@@ -101,8 +100,6 @@ arguments_variables: arguments_variables SEMICOL variable_type ':' variable_decl
 variable_declaration: variable_declaration COMMA IDENTIFIER
                       | IDENTIFIER;
 
-
-
 %%
 
 
@@ -110,9 +107,7 @@ variable_declaration: variable_declaration COMMA IDENTIFIER
 
 int main()
 {
-    int ret = yyparse();
-    printtree(root);
-    return ret;
+    return yyparse();
 }
 
 void yyerror(const char* s)
@@ -135,6 +130,9 @@ node *mknode(char *token, node *left, node *right)
 
 void printtree(node *tree)
 {
+    if(!tree)
+        return;
+
     printf("%s\n", tree->token);
     if(tree->left)
         printtree(tree->left);

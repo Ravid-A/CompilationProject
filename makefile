@@ -53,6 +53,6 @@ clean:
 	rm -f $(EXEC) $(LEX_OUT) $(YACC_OUT) 
 
 run: $(EXEC)
-	./$(EXEC) < $(TEST_FILE)
+	./$(EXEC) < $(TEST_FILE) > output
 
 .PHONY: all run clean
