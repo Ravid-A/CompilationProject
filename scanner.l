@@ -33,8 +33,10 @@ else        { return ELSE; }
 while       { return WHILE; }
 do          { return DO; }
 for         { return FOR; }
-function    { return FUNCTION; }
-"arg->"     { return ARGS; }
+public      { return PUBLIC; }
+private     { return PRIVATE; }
+static      { return STATIC; }
+"args>>"     { return ARGS; }
 return      { return RETURN; }
 void        { return VOID; }
 

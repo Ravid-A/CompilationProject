@@ -1,13 +1,8 @@
-function foo(arg-> i, j, k: int): int
+private bool foo(args>> int: i, j, k)
 {
-    function fee(arg-> l, m, n: int; arg-> x, y: real): bool
-    {
-
-    }
+    
 }
-function goo(arg-> i, j, k: int): void
+public void goo(args>> int: i, j, k)
 {
-    function fee(arg-> l, m, n: real): bool
-    {
-    }
+
 }

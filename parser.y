@@ -54,7 +54,7 @@ typedef enum { false, true } bool;
 %token COMMENT_OPEN COMMENT_END
 %token REF DEREF
 %token SEMICOL COMMA STRLEN VAR
-%token ARGS FUNCTION RETURN 
+%token ARGS PUBLIC PRIVATE STATIC RETURN 
 %token AND EQ GRTR GRTR_EQ LESS LESS_EQ NOT NOT_EQ OR 
 %token BLOCK_OPEN BLOCK_CLOSE PAREN_OPEN PAREN_CLOSE INDEX_OPEN INDEX_CLOSE
 %token BOOL CHAR STRING INT REAL VOID NULL_TOKEN
@@ -77,6 +77,7 @@ typedef enum { false, true } bool;
 %right INDEX_OPEN
 
 %type <node> s function return_type arguments arguments_variables body 
+%type <node> privacy_of_function is_static
 %type <sval> variable_type
 %type <args> argument_declaration
 
@@ -92,13 +93,21 @@ s: s function {
         add_child($$, $1);
    }
 
-function: FUNCTION IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE ':' return_type BLOCK_OPEN body BLOCK_CLOSE { 
+function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN body BLOCK_CLOSE { 
                                                                                                                                 $$ = mknode("FUNC");
-                                                                                                                                add_child($$, mknode($2));
-                                                                                                                                add_child($$, $4);
+                                                                                                                                add_child($$, mknode($3));
                                                                                                                                 add_child($$, $7);
+                                                                                                                                add_child($$, $1);
+                                                                                                                                add_child($$, $2);
                                                                                                                                 add_child($$, $9);
                                                                                                                             };
+
+privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
+                    | PRIVATE { $$ = mknode("PRIVATE"); }
+                    | { yyerror("Privacy of a function must be specified"); }
+
+is_static: ':' STATIC { $$ = mknode("STATIC"); }
+               | { $$ = mknode("NON_STATIC"); }
 
 return_type: variable_type  { 
                                 $$ = mknode("RET");
@@ -118,17 +127,17 @@ variable_type: INT { $$ = "INT"; } |
                PTR_REAL { $$ = "PTR_REAL"; } |
                PTR_CHAR { $$ = "PTR_CHAR"; } ;
 
-arguments: arguments_variables { $$ = $1; }
+arguments: ARGS arguments_variables { $$ = $2; }
                | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); }
                ;
 
-arguments_variables: arguments_variables SEMICOL ARGS argument_declaration ':' variable_type {  add_args_to_node($$, $6, $4); }
+arguments_variables: arguments_variables SEMICOL variable_type ':' argument_declaration{  add_args_to_node($$, $3, $5); }
             | arguments_variables SEMICOL { yyerror("Arguments of a function will be separated by a \";\" but no argument was provided after the semicolon"); }
-            | ARGS argument_declaration ':' variable_type { 
+            | variable_type ':' argument_declaration { 
                                                         $$ = mknode("ARGS");
-                                                        add_args_to_node($$, $4, $2);
+                                                        add_args_to_node($$, $1, $3);
                                                      }
-            | variable_type argument_declaration { yyerror("Arguments of a certain type must be separated by a ':' like \"x :int\""); }   
+            | variable_type argument_declaration { yyerror("Arguments of a certain type must be separated by a ':' like \"int: x\""); }   
 
 argument_declaration: argument_declaration COMMA IDENTIFIER { add_args($$, $3); }
                       | IDENTIFIER { add_args($$, $1); }
