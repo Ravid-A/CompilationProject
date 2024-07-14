@@ -1,8 +1,13 @@
-private bool foo(args>> int: i, j, k)
-{
-    
+public void foo(args>> int: x, y, z; float: f){
+    if (x > y) {
+        x <- x + y;
+    }
+    else {
+        y <- x + y + z;
+        z <- y * 2;
+        f <- z;
+    }
 }
-public void goo(args>> int: i, j, k)
-{
-
+private char goo(): static{
+    return 'a';
 }

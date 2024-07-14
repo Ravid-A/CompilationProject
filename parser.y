@@ -5,6 +5,7 @@ program: function
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 int yylex();
 void yyerror(const char* s);
@@ -32,7 +33,15 @@ void printtree(node *tree, int indent);
 
 void printParen(int indent);
 
-typedef enum { false, true } bool;
+char* ConcatString(char *s1, char *s2);
+
+char* stoc(char c);
+char* stoi(int i);
+char* stof(float f);
+
+bool current_function_has_return = true;
+
+int yycolumnno = 0;
 %}
 
 %union {
@@ -47,18 +56,17 @@ typedef enum { false, true } bool;
 
 %token <sval> IDENTIFIER LIT_STRING
 %token <ival> LIT_INT
-%token <rval> LIT_REAL
+%token <rval> LIT_FLOAT LIT_DOUBLE
 %token <cval> LIT_CHAR
 %token <bval> LIT_BOOL
 
-%token COMMENT_OPEN COMMENT_END
 %token REF DEREF
 %token SEMICOL COMMA STRLEN VAR
 %token ARGS PUBLIC PRIVATE STATIC RETURN 
 %token AND EQ GRTR GRTR_EQ LESS LESS_EQ NOT NOT_EQ OR 
 %token BLOCK_OPEN BLOCK_CLOSE PAREN_OPEN PAREN_CLOSE INDEX_OPEN INDEX_CLOSE
-%token BOOL CHAR STRING INT REAL VOID NULL_TOKEN
-%token PTR_INT PTR_REAL PTR_CHAR
+%token BOOL CHAR STRING INT FLOAT DOUBLE VOID NULL_TOKEN
+%token PTR_INT PTR_FLOAT PTR_DOUBLE PTR_CHAR
 %token WHILE DO FOR
 %token IF ELSE
 
@@ -76,9 +84,10 @@ typedef enum { false, true } bool;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables body 
-%type <node> privacy_of_function is_static
-%type <sval> variable_type
+%type <node> s function return_type arguments arguments_variables function_body 
+%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement
+%type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement
+%type <sval> variable_type 
 %type <args> argument_declaration
 
 %%
@@ -93,7 +102,7 @@ s: s function {
         add_child($$, $1);
    }
 
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN body BLOCK_CLOSE { 
+function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN function_body BLOCK_CLOSE { 
                                                                                                                                 $$ = mknode("FUNC");
                                                                                                                                 add_child($$, mknode($3));
                                                                                                                                 add_child($$, $7);
@@ -110,21 +119,27 @@ is_static: ':' STATIC { $$ = mknode("STATIC"); }
                | { $$ = mknode("NON_STATIC"); }
 
 return_type: variable_type  { 
+                                current_function_has_return = true;
+
                                 $$ = mknode("RET");
                                 add_child($$, mknode($1)); 
                             };
             | VOID { 
+                    current_function_has_return = false;
+
                     $$ = mknode("RETURN");
                     add_child($$, mknode("VOID")); 
                 };
 
 variable_type: INT { $$ = "INT"; } |
                CHAR { $$ = "CHAR"; } |
-               REAL { $$ = "REAL"; } |
+               FLOAT { $$ = "FLOAT"; } |
+               DOUBLE { $$ = "DOUBLE"; } |
                STRING { $$ = "STRING"; } |
                BOOL { $$ = "BOOL"; } |
                PTR_INT { $$ = "PTR_INT"; } |
-               PTR_REAL { $$ = "PTR_REAL"; } |
+               PTR_FLOAT { $$ = "PTR_FLOAT"; } |
+               PTR_DOUBLE { $$ = "PTR_DOUBLE"; } |
                PTR_CHAR { $$ = "PTR_CHAR"; } ;
 
 arguments: ARGS arguments_variables { $$ = $2; }
@@ -142,10 +157,73 @@ arguments_variables: arguments_variables SEMICOL variable_type ':' argument_decl
 argument_declaration: argument_declaration COMMA IDENTIFIER { add_args($$, $3); }
                       | IDENTIFIER { add_args($$, $1); }
 
+variable_assignment: IDENTIFIER ASS expression { $$ = mknode(ConcatString("ASS ", $1)); add_child($$, $3); };
+                     | IDENTIFIER ASS { yyerror("missing value for assainment."); }
+                     | ASS expression { yyerror("missing variable indetifier"); } ;
 
-// body: anything that is inside the function
-body: { $$ = mknode("BODY"); add_child($$, mknode("NONE")); }
-    | body function { add_child($$, $2); }
+variable_declaration: VAR variable_type ':' argument_declaration { $$ = mknode("VARDEC"); add_args_to_node($$, $2, $4); }
+
+expression: expression ADD expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); } |
+            expression SUB expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); } |
+            expression MUL expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); } |
+            expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); } |
+            expression MOD expression { $$ = mknode("%"); add_child($$, $1); add_child($$, $3); } |
+            values { $$ = $1; } 
+
+values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
+        LIT_CHAR { $$ = mknode(stoc($1)); } |
+        LIT_INT { $$ = mknode(stoi($1)); } |
+        LIT_DOUBLE { $$ = mknode(stof($1)); } |
+        LIT_FLOAT { $$ = mknode(stof($1)); } |
+        LIT_STRING { $$ = mknode($1); } |
+        NULL_TOKEN { $$ = mknode("NULL"); } |
+        STRLEN IDENTIFIER STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
+        IDENTIFIER { $$ = mknode($1); } |
+        PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
+        REF IDENTIFIER { $$ = mknode(ConcatString("REF ", $2)); } |
+        DEREF IDENTIFIER { $$ = mknode(ConcatString("DEREF ", $2)); } |
+        IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); };
+
+
+function_body: statements return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2);}
+       | return_statement { $$ = mknode("BODY"); add_child($$, $1); } 
+       | statements { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = $1; $$->token="BODY"; }
+       | { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
+
+block: statements return_statement { $$ = $1; $$->token="BLOCK"; }
+       | return_statement { $$ = mknode("BLOCK"); add_child($$, $1); } 
+       | statements { $$ = $1; $$->token="BLOCK"; }
+       | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BLOCK"); add_child($$, mknode("EMPTY")); }
+
+loop_statement: WHILE PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("WHILE"); add_child($$, $3); add_child($$, $6); }
+               | DO BLOCK_OPEN block BLOCK_CLOSE WHILE PAREN_OPEN binary_expression PAREN_CLOSE SEMICOL { $$ = mknode("DO"); add_child($$, $3); add_child($$, $7); }
+               | FOR PAREN_OPEN variable_declaration SEMICOL binary_expression SEMICOL variable_assignment PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("FOR"); add_child($$, $3); add_child($$, $5); add_child($$, $7); add_child($$, $10); }
+
+if_statement: IF PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("IF"); add_child($$, $3); add_child($$, $6); }
+        | IF PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE ELSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("IF_ELSE"); add_child($$, $3); add_child($$, $6); add_child($$, $10); }
+
+binary_expression: expression EQ expression { $$ = mknode("=="); add_child($$, $1); add_child($$, $3); }
+                 | expression GRTR expression { $$ = mknode(">"); add_child($$, $1); add_child($$, $3); }
+                 | expression GRTR_EQ expression { $$ = mknode(">="); add_child($$, $1); add_child($$, $3); }
+                 | expression LESS expression { $$ = mknode("<"); add_child($$, $1); add_child($$, $3); }
+                 | expression LESS_EQ expression { $$ = mknode("<="); add_child($$, $1); add_child($$, $3); }
+                 | expression NOT_EQ expression { $$ = mknode("!="); add_child($$, $1); add_child($$, $3); }
+                 | expression AND expression { $$ = mknode("&&"); add_child($$, $1); add_child($$, $3); }
+                 | expression OR expression { $$ = mknode("||"); add_child($$, $1); add_child($$, $3); }
+                 | NOT expression { $$ = mknode("!"); add_child($$, $2); }
+                 | LIT_BOOL { $$ = mknode($1? "True":"False"); } ;
+
+statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
+            statements possible_statements { add_child($$, $2); } ;
+
+possible_statements: variable_declaration SEMICOL { $$ = $1; } |
+                     variable_assignment SEMICOL { $$ = $1; } |
+                    loop_statement { $$ = $1; } |
+                    if_statement { $$ = $1; } ;
+
+return_statement: RETURN expression SEMICOL { if(!current_function_has_return) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
+                  | RETURN SEMICOL { $$ = mknode("RETURN"); } ;
+
 %%
 
 
@@ -159,7 +237,7 @@ int main()
 void yyerror(const char* s)
 {
     fprintf(stderr, "%s\n", s);
-    fprintf(stderr, "Error at line %d\n", yylineno);
+    fprintf(stderr, "Error at line %d, column: %d\n", yylineno, yycolumnno);
     exit(1);
 }
 
@@ -257,4 +335,34 @@ void printParen(int indent)
     {
         printf(" \t");
     }
+}
+
+char* ConcatString(char *s1, char *s2)
+{
+    char *result = (char*)malloc(strlen(s1) + strlen(s2) + 1);
+    strcpy(result, s1);
+    strcat(result, s2);
+    return result;
+}
+
+char* stoc(char c)
+{
+    char *result = (char*)malloc(2);
+    result[0] = c;
+    result[1] = '\0';
+    return result;
+}
+
+char* stoi(int i)
+{
+    char *result = (char*)malloc(11);
+    sprintf(result, "%d", i);
+    return result;
+}
+
+char* stof(float f)
+{
+    char *result = (char*)malloc(11);
+    sprintf(result, "%f", f);
+    return result;
 }

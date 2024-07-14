@@ -1,81 +1,81 @@
-
-DIGIT       [0-9]
-DIGIT_HEX   [A-F]
-NONZERO     [1-9]
-SIGN        [\-\+]
-LETTER      [a-zA-Z]
-CHARACHTER  [a-zA-Z0-9]
-char        \'.\'
-int_dec     0|{NONZERO}{DIGIT}*
-int_hex     0(x|X){DIGIT_HEX}+
-int         (^{SIGN})?({int_hex}|{int_dec})
+DIGIT [0-9]
+DIGIT_HEX [0-9a-fA-F]
+NONZERO [1-9]
+SIGN [\-\+]
+LETTER [a-zA-Z]
+CHARACHTER [a-zA-Z0-9]
+char \'.\'
+int_dec 0|{NONZERO}{DIGIT}*
+int_hex 0[xX]{DIGIT_HEX}+
+int (^{SIGN})?({int_hex}|{int_dec})
 ex_notation (e|E){int_dec}
-real      (^{SIGN})?({int_dec}?.{int_dec}|{int_dec}.{int_dec}?){ex_notation}?
-string      \"[^\n"]*\"
-identifier  {LETTER}({CHARACHTER}|_)*
+real (^{SIGN})?({int_dec}\.{DIGIT}+|{int_dec}?\.{DIGIT}+){ex_notation}?|{int_dec}{ex_notation}
+double {real}
+float {real}f
+string \"[^\n"]*\"
+identifier {LETTER}({CHARACHTER}|_)*
 
 %%
-"/*"        { return COMMENT_OPEN; }
-"*/"        { return COMMENT_END; }
 
-bool        { return BOOL; }
-char        { return CHAR; }
-int         { return INT; }
-real        { return REAL; }
-string      { return STRING; }
-null        { return NULL_TOKEN; }
-"int*"      { return PTR_INT; }
-"real*"     { return PTR_REAL; }
-"char*"     { return PTR_CHAR; }
-var         { return VAR; }
-if          { return IF; }
-else        { return ELSE; }
-while       { return WHILE; }
-do          { return DO; }
-for         { return FOR; }
-public      { return PUBLIC; }
-private     { return PRIVATE; }
-static      { return STATIC; }
-"args>>"     { return ARGS; }
-return      { return RETURN; }
-void        { return VOID; }
+bool { yycolumnno += yyleng; return BOOL; }
+char { yycolumnno += yyleng; return CHAR; }
+int { yycolumnno += yyleng; return INT; }
+double { yycolumnno += yyleng; return DOUBLE; }
+float { yycolumnno += yyleng; return FLOAT; }
+string { yycolumnno += yyleng; return STRING; }
+null { yycolumnno += yyleng; return NULL_TOKEN; }
+"int*" { yycolumnno += yyleng; return PTR_INT; }
+"float*" { yycolumnno += yyleng; return PTR_FLOAT; }
+"double*" { yycolumnno += yyleng; return PTR_DOUBLE; }
+"char*" { yycolumnno += yyleng; return PTR_CHAR; }
+var { yycolumnno += yyleng; return VAR; }
+if { yycolumnno += yyleng; return IF; }
+else { yycolumnno += yyleng; return ELSE; }
+while { yycolumnno += yyleng; return WHILE; }
+do { yycolumnno += yyleng; return DO; }
+for { yycolumnno += yyleng; return FOR; }
+public { yycolumnno += yyleng; return PUBLIC; }
+private { yycolumnno += yyleng; return PRIVATE; }
+static { yycolumnno += yyleng; return STATIC; }
+"args>>" { yycolumnno += yyleng; return ARGS; }
+return { yycolumnno += yyleng; return RETURN; }
+void { yycolumnno += yyleng; return VOID; }
+"&&" { yycolumnno += yyleng; return AND; }
+"==" { yycolumnno += yyleng; return EQ; }
+">" { yycolumnno += yyleng; return GRTR; }
+">=" { yycolumnno += yyleng; return GRTR_EQ; }
+"<" { yycolumnno += yyleng; return LESS; }
+"<=" { yycolumnno += yyleng; return LESS_EQ; }
+"!" { yycolumnno += yyleng; return NOT; }
+"!=" { yycolumnno += yyleng; return NOT_EQ; }
+"||" { yycolumnno += yyleng; return OR; }
+"&"[.]+ { yycolumnno += yyleng; return REF; }
+\*[.]+ { yycolumnno += yyleng; return DEREF; }
+"/" { yycolumnno += yyleng; return DIV; }
+"-" { yycolumnno += yyleng; return SUB; }
+"+" { yycolumnno += yyleng; return ADD; }
+\* { yycolumnno += yyleng; return MUL; }
+"%" { yycolumnno += yyleng; return MOD; }
+true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
+{char} { yycolumnno += yyleng; yylval.cval = yytext[1]; return LIT_CHAR; }
+{int} { yycolumnno += yyleng; yylval.ival = atoi(yytext); return LIT_INT; }
+{double} { yycolumnno += yyleng; yylval.rval = atof(yytext); return LIT_DOUBLE; }
+{float} { yycolumnno += yyleng; yylval.rval = atof(yytext); return LIT_FLOAT; }
+{string} { yycolumnno += yyleng; yylval.sval = strdup(yytext); return LIT_STRING; }
+{identifier} { yycolumnno += yyleng; yylval.sval = strdup(yytext); return IDENTIFIER; }
+";" { yycolumnno += yyleng; return SEMICOL; }
+"," { yycolumnno += yyleng; return COMMA; }
+"|" { yycolumnno += yyleng; return STRLEN; }
+"{" { yycolumnno += yyleng; return BLOCK_OPEN; }
+"}" { yycolumnno += yyleng; return BLOCK_CLOSE; }
+"(" { yycolumnno += yyleng; return PAREN_OPEN; }
+")" { yycolumnno += yyleng; return PAREN_CLOSE; }
+"[" { yycolumnno += yyleng; return INDEX_OPEN; }
+"]" { yycolumnno += yyleng; return INDEX_CLOSE; }
+"<-" { yycolumnno += yyleng; return ASS; }
+"/*".*"*/" { yycolumnno += yyleng; /* ignore comments */ }
+[ \t\s] { yycolumnno += yyleng; /* ignore whitespace */ }
+[ \n] { yycolumnno = 0; yylineno++; }
+. { yycolumnno += yyleng; return yytext[0]; }
 
-"&&"        { return AND; }
-"=="        { return EQ; }
-">"         { return GRTR; }
-">="        { return GRTR_EQ; }
-"<"         { return LESS; }
-"<="        { return LESS_EQ; }
-"!"         { return NOT; }
-"!="        { return NOT_EQ; }
-"||"        { return OR; }
-"/"         { return DIV; }
-"-"         { return SUB; }
-"+"         { return ADD; }
-[.]+\*      { return MUL; }
-"%"         { return MOD; }  
-"&"[.]+     { return REF; }
-\*[.]+      { return DEREF; }
-
-true|false      { yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
-{char}          { yylval.cval = yytext[1]; return LIT_CHAR; }
-{int}           { yylval.ival = atoi(yytext); return LIT_INT; }
-{real}          { yylval.rval = atof(yytext); return LIT_REAL; }
-{string}        { yylval.sval = strdup(yytext); return LIT_STRING; }
-{identifier}    { yylval.sval = strdup(yytext); return IDENTIFIER; }
-
-";"         { return SEMICOL; }
-","         { return COMMA; }
-"|"         { return STRLEN; }
-"{"         { return BLOCK_OPEN; }
-"}"         { return BLOCK_CLOSE; }
-"("         { return PAREN_OPEN; }
-")"         { return PAREN_CLOSE; }
-"["         { return INDEX_OPEN; }
-"]"         { return INDEX_CLOSE; }
-"<-"        { return ASS; }
-
-[ \t\s]      { /* ignore whitespace */ };
-[ \n]        { yylineno++; }
-.            { return yytext[0]; }
 %%

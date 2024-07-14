@@ -46,7 +46,7 @@ $(LEX_OUT): $(LEX_SRC)
 
 # how to generate yacc output
 $(YACC_OUT): $(YACC_SRC)
-	$(YACC) $(YACC_SRC)
+	$(YACC) -v $(YACC_SRC)
 
 # clean all generated files
 clean:
