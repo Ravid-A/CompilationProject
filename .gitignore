@@ -11,3 +11,5 @@ output
 .vscode
 
 *.zip
+
+.DS_Store
