@@ -239,7 +239,8 @@ declaration: variable_declaration SEMICOL { $$ = $1; } |
 
 possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      loop_statement { $$ = $1; } |
-                     if_statement { $$ = $1; } ;
+                     if_statement { $$ = $1; } |
+                     function_call SEMICOL { $$ = $1; } ;
 
 return_statement: RETURN expression SEMICOL { if(!current_function_has_return) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
                   | RETURN SEMICOL { $$ = mknode("RETURN"); } ;
