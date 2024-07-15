@@ -28,6 +28,7 @@ node *mknode(char *token);
 void add_child(node *parent, node *child);
 void add_args(args *a, char *arg);
 void add_args_to_node(node *parent, char *type, args *a);
+void add_nodes_to_node(node *parent, node *child);
 
 void printtree(node *tree, int indent);
 
@@ -39,7 +40,7 @@ char* stoc(char c);
 char* stoi(int i);
 char* stof(float f);
 
-bool current_function_has_return = true;
+bool current_function_has_return = false;
 
 int yycolumnno = 0;
 %}
@@ -84,7 +85,7 @@ int yycolumnno = 0;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables function_body function_call
+%type <node> s function return_type arguments arguments_variables function_body function_call declaration declarations
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement
 %type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement
 %type <sval> variable_type 
@@ -103,13 +104,14 @@ s: s function {
    }
 
 function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN function_body BLOCK_CLOSE { 
-                                                                                                                                $$ = mknode("FUNC");
-                                                                                                                                add_child($$, mknode($3));
-                                                                                                                                add_child($$, $7);
-                                                                                                                                add_child($$, $1);
-                                                                                                                                add_child($$, $2);
-                                                                                                                                add_child($$, $9);
-                                                                                                                            };
+                                                                                                            $$ = mknode("FUNC");
+                                                                                                            add_child($$, mknode($3));
+                                                                                                            add_child($$, $7);
+                                                                                                            add_child($$, $1);
+                                                                                                            add_child($$, $5);
+                                                                                                            add_child($$, $2);
+                                                                                                            add_child($$, $9);
+                                                                                                        };
 
 privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
                     | PRIVATE { $$ = mknode("PRIVATE"); }
@@ -120,13 +122,11 @@ is_static: ':' STATIC { $$ = mknode("STATIC"); }
 
 return_type: variable_type  { 
                                 current_function_has_return = true;
-
                                 $$ = mknode("RET");
                                 add_child($$, mknode($1)); 
                             };
             | VOID { 
                     current_function_has_return = false;
-
                     $$ = mknode("RETURN");
                     add_child($$, mknode("VOID")); 
                 };
@@ -178,6 +178,7 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
         LIT_STRING { $$ = mknode($1); } |
         NULL_TOKEN { $$ = mknode("NULL"); } |
         STRLEN IDENTIFIER STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
+        STRLEN LIT_STRING STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
         IDENTIFIER { $$ = mknode($1); } |
         PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
         REF IDENTIFIER { $$ = mknode(ConcatString("REF ", $2)); } |
@@ -187,14 +188,26 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
 
 function_call: IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE { $$ = mknode("FUNC_CALL"); add_child($$, mknode($1)); add_child($$, $3); }
 
-function_body: statements return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2);}
-       | return_statement { $$ = mknode("BODY"); add_child($$, $1); } 
+function_body: declarations statements return_statement { $$ = $1; $$->token="BODY"; add_nodes_to_node($$, $2); add_child($$, $3);}
+       | declarations return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2); }
+       | declarations statements { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = $1; $$->token="BODY"; add_nodes_to_node($$, $2); }
+       | statements return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2); }
+       | declarations { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = $1; $$->token="BODY"; }
        | statements { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = $1; $$->token="BODY"; }
-       | { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
+       | return_statement { $$ = mknode("BODY"); add_child($$, $1); } 
+       | statements declarations { yyerror("Declarations must be before statements"); }
+       | return_statement declarations { yyerror("Declarations must be before return statement"); }
+       | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
 
-block: statements return_statement { $$ = $1; $$->token="BLOCK"; add_child($$, $2);}
-       | return_statement { $$ = mknode("BLOCK"); add_child($$, $1); } 
+block: declarations statements return_statement { $$ = $1; $$->token="BLOCK"; add_nodes_to_node($$, $2); add_child($$, $3);}
+       | declarations return_statement { $$ = $1; $$->token="BLOCK"; add_child($$, $2); }
+       | declarations statements { $$ = $1; $$->token="BLOCK"; add_nodes_to_node($$, $2); }
+       | statements return_statement { $$ = $1; $$->token="BLOCK"; add_child($$, $2); }
+       | declarations { $$ = $1; $$->token="BLOCK"; }
        | statements { $$ = $1; $$->token="BLOCK"; }
+       | return_statement { $$ = mknode("BLOCK"); add_child($$, $1); } 
+       | statements declarations { yyerror("Declarations must be before statements"); }
+       | return_statement declarations { yyerror("Declarations must be before return statement"); }
        | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BLOCK"); add_child($$, mknode("EMPTY")); }
 
 loop_statement: WHILE PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("WHILE"); add_child($$, $3); add_child($$, $6); }
@@ -218,9 +231,13 @@ binary_expression: expression EQ expression { $$ = mknode("=="); add_child($$, $
 statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
             statements possible_statements { add_child($$, $2); } ;
 
-possible_statements: variable_declaration SEMICOL { $$ = $1; } |
-                     variable_assignment SEMICOL { $$ = $1; } |
-                     function { $$ = $1; } |
+declarations: declaration { $$ = mknode("DECLARATIONS"); add_child($$, $1); } |
+              declarations declaration { add_child($$, $2); } ;
+
+declaration: variable_declaration SEMICOL { $$ = $1; } |
+             function { $$ = $1; } ;
+
+possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      loop_statement { $$ = $1; } |
                      if_statement { $$ = $1; } ;
 
@@ -301,6 +318,14 @@ void add_args_to_node(node *parent, char *type, args *a)
     {
         node *arg = mknode(a->args[i]);
         add_child(newnode, arg);
+    }
+}
+
+void add_nodes_to_node(node *parent, node *child)
+{
+    for(int i = 0; i < child->children_count; i++)
+    {
+        add_child(parent, child->children[i]);
     }
 }
 

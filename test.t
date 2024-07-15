@@ -1,4 +1,6 @@
-public void foo(args>> int: x, y, z; float: f){
+public int foo(args>> int: x, y, z; float: f){
+    var int: b;
+
     if (x > y) {
         x <- x + y;
     }
@@ -7,6 +9,10 @@ public void foo(args>> int: x, y, z; float: f){
         z <- y * 2;
         f <- z;
     }
+
+    b <- x + y + z;
+
+    return b;
 }
 private char goo(): static{
     return 'a';
