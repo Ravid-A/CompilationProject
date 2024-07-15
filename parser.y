@@ -85,7 +85,7 @@ int yycolumnno = 0;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables function_body function_call declaration declarations
+%type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments
 %type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement
 %type <sval> variable_type 
@@ -235,11 +235,16 @@ binary_expression: expression EQ expression { $$ = mknode("=="); add_child($$, $
 statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
             statements possible_statements { add_child($$, $2); } ;
 
-declarations: declaration { $$ = mknode("DECLARATIONS"); add_child($$, $1); } |
-              declarations declaration { add_child($$, $2); } ;
+declarations: variable_declarations functions_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); add_nodes_to_node($$,$2); }|
+              variable_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); } |
+              functions_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); } |
+              functions_declarations variable_declarations { yyerror("Function declarations must be before variable declarations"); } ;
 
-declaration: variable_declaration SEMICOL { $$ = $1; } |
-             function { $$ = $1; } ;
+variable_declarations: variable_declaration SEMICOL { $$ = mknode("VAR_DECS"); add_child($$, $1); } |
+                        variable_declarations variable_declaration SEMICOL { add_child($$, $2); } ;
+
+functions_declarations: function { $$ = mknode("FUNC_DECS"); add_child($$, $1); } |
+                        functions_declarations function { add_child($$, $2); } ;
 
 possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      loop_statement { $$ = $1; } |

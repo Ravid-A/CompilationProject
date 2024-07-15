@@ -19,3 +19,13 @@ private int goo(args>> int: x): static{
     foo(x, 2, 3, 4.0);
     return 3;
 }
+
+public int barr(args>> int: i, j, k): static
+{
+    var double: max, min;
+    private bool fee(args>> int: l, m, n; float: x, y)
+    {
+        return true;
+    }
+    return 0;
+}
