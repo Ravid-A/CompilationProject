@@ -84,7 +84,7 @@ int yycolumnno = 0;
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables function_body 
+%type <node> s function return_type arguments arguments_variables function_body function_call
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement
 %type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement
 %type <sval> variable_type 
@@ -182,15 +182,17 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
         PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
         REF IDENTIFIER { $$ = mknode(ConcatString("REF ", $2)); } |
         DEREF IDENTIFIER { $$ = mknode(ConcatString("DEREF ", $2)); } |
-        IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); };
+        IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); } |
+        function_call { $$ = $1; } ;
 
+function_call: IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE { $$ = mknode("FUNC_CALL"); add_child($$, mknode($1)); add_child($$, $3); }
 
 function_body: statements return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2);}
        | return_statement { $$ = mknode("BODY"); add_child($$, $1); } 
        | statements { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = $1; $$->token="BODY"; }
        | { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
 
-block: statements return_statement { $$ = $1; $$->token="BLOCK"; }
+block: statements return_statement { $$ = $1; $$->token="BLOCK"; add_child($$, $2);}
        | return_statement { $$ = mknode("BLOCK"); add_child($$, $1); } 
        | statements { $$ = $1; $$->token="BLOCK"; }
        | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BLOCK"); add_child($$, mknode("EMPTY")); }
@@ -218,8 +220,9 @@ statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); 
 
 possible_statements: variable_declaration SEMICOL { $$ = $1; } |
                      variable_assignment SEMICOL { $$ = $1; } |
-                    loop_statement { $$ = $1; } |
-                    if_statement { $$ = $1; } ;
+                     function { $$ = $1; } |
+                     loop_statement { $$ = $1; } |
+                     if_statement { $$ = $1; } ;
 
 return_statement: RETURN expression SEMICOL { if(!current_function_has_return) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
                   | RETURN SEMICOL { $$ = mknode("RETURN"); } ;
