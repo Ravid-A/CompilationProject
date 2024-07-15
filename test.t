@@ -3,6 +3,7 @@ public int foo(args>> int: x, y, z; float: f){
 
     if (x > y) {
         x <- x + y;
+        goo(x);
     }
     else {
         y <- x + y + z;
@@ -14,6 +15,7 @@ public int foo(args>> int: x, y, z; float: f){
 
     return b;
 }
-private char goo(): static{
-    return 'a';
+private int goo(args>> int: x): static{ 
+    foo(x, 2, 3, 4.0);
+    return 3;
 }

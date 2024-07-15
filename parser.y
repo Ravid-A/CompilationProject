@@ -86,7 +86,7 @@ int yycolumnno = 0;
 %right INDEX_OPEN
 
 %type <node> s function return_type arguments arguments_variables function_body function_call declaration declarations
-%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement
+%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments
 %type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement
 %type <sval> variable_type 
 %type <args> argument_declaration
@@ -186,7 +186,11 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
         IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); } |
         function_call { $$ = $1; } ;
 
-function_call: IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE { $$ = mknode("FUNC_CALL"); add_child($$, mknode($1)); add_child($$, $3); }
+function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE { $$ = mknode("FUNC_CALL"); add_child($$, mknode($1)); add_child($$, $3); }
+
+call_arguments: call_arguments COMMA expression { add_child($$, $3); }
+               | expression { $$ = mknode("ARGS"); add_child($$, $1); }
+               | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); };
 
 function_body: declarations statements return_statement { $$ = $1; $$->token="BODY"; add_nodes_to_node($$, $2); add_child($$, $3);}
        | declarations return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2); }
