@@ -1,7 +1,7 @@
 public int foo(args>> int: x, y, z; float: f){
     var int: b;
 
-    if (x > y) {
+    if (x > y && true || !x) {
         x <- x + y;
         goo(x);
     }
