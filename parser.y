@@ -222,16 +222,16 @@ loop_statement: WHILE PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block 
 if_statement: IF PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("IF"); add_child($$, $3); add_child($$, $6); }
         | IF PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE ELSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("IF_ELSE"); add_child($$, $3); add_child($$, $6); add_child($$, $10); }
 
-binary_expression: expression EQ expression { $$ = mknode("=="); add_child($$, $1); add_child($$, $3); }
-                 | expression GRTR expression { $$ = mknode(">"); add_child($$, $1); add_child($$, $3); }
-                 | expression GRTR_EQ expression { $$ = mknode(">="); add_child($$, $1); add_child($$, $3); }
-                 | expression LESS expression { $$ = mknode("<"); add_child($$, $1); add_child($$, $3); }
-                 | expression LESS_EQ expression { $$ = mknode("<="); add_child($$, $1); add_child($$, $3); }
-                 | expression NOT_EQ expression { $$ = mknode("!="); add_child($$, $1); add_child($$, $3); }
-                 | expression AND expression { $$ = mknode("&&"); add_child($$, $1); add_child($$, $3); }
-                 | expression OR expression { $$ = mknode("||"); add_child($$, $1); add_child($$, $3); }
-                 | NOT expression { $$ = mknode("!"); add_child($$, $2); }
-                 | LIT_BOOL { $$ = mknode($1? "True":"False"); } ;
+binary_expression: binary_expression EQ binary_expression { $$ = mknode("=="); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression GRTR binary_expression { $$ = mknode(">"); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression GRTR_EQ binary_expression { $$ = mknode(">="); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression LESS binary_expression { $$ = mknode("<"); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression LESS_EQ binary_expression { $$ = mknode("<="); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression NOT_EQ binary_expression { $$ = mknode("!="); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression AND binary_expression { $$ = mknode("&&"); add_child($$, $1); add_child($$, $3); }
+                 | binary_expression OR binary_expression { $$ = mknode("||"); add_child($$, $1); add_child($$, $3); }
+                 | NOT expression { $$ = mknode("NOT"); add_child($$, $2); }
+                 | expression { $$ = $1; };
 
 statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
             statements possible_statements { add_child($$, $2); } ;
