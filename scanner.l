@@ -14,6 +14,7 @@ double {real}
 float {real}f
 string \"[^\n"]*\"
 identifier {LETTER}({CHARACHTER}|_)*
+newline \n|\r\n|\r|\r
 
 %%
 
@@ -74,9 +75,9 @@ true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; re
 "[" { yycolumnno += yyleng; return INDEX_OPEN; }
 "]" { yycolumnno += yyleng; return INDEX_CLOSE; }
 "<-" { yycolumnno += yyleng; return ASS; }
-\/\*(.|\n)*\*\/ { yycolumnno += yyleng; /* ignore comments */ }
+\/\*(.|{newline})*\*\/ { yycolumnno += yyleng; /* ignore comments */ }
 [ \t\s] { yycolumnno += yyleng; /* ignore whitespace */ }
-[ \r\n|\n] { yycolumnno = 0; yylineno++; }
+{newline} { yycolumnno = 0; yylineno++; }
 . { yycolumnno += yyleng; yyerror("INVALID TOKEN"); }
 
 %%
