@@ -72,6 +72,7 @@ int yycolumnno = 0;
 %token IF ELSE
 
 %left COMMA
+%left COLON
 %right ASS
 %left OR
 %left AND
@@ -117,7 +118,7 @@ privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
                     | PRIVATE { $$ = mknode("PRIVATE"); }
                     | { yyerror("Privacy of a function must be specified"); }
 
-is_static: ':' STATIC { $$ = mknode("STATIC"); }
+is_static: COLON STATIC { $$ = mknode("STATIC"); }
                | { $$ = mknode("NON_STATIC"); }
 
 return_type: variable_type  { 
@@ -146,9 +147,9 @@ arguments: ARGS arguments_variables { $$ = $2; }
                | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); }
                ;
 
-arguments_variables: arguments_variables SEMICOL variable_type ':' argument_declaration{  add_args_to_node($$, $3, $5); }
+arguments_variables: arguments_variables SEMICOL variable_type COLON argument_declaration{  add_args_to_node($$, $3, $5); }
             | arguments_variables SEMICOL { yyerror("Arguments of a function will be separated by a \";\" but no argument was provided after the semicolon"); }
-            | variable_type ':' argument_declaration { 
+            | variable_type COLON argument_declaration { 
                                                         $$ = mknode("ARGS");
                                                         add_args_to_node($$, $1, $3);
                                                      }
@@ -161,7 +162,7 @@ variable_assignment: IDENTIFIER ASS expression { $$ = mknode(ConcatString("ASS "
                      | IDENTIFIER ASS { yyerror("missing value for assainment."); }
                      | ASS expression { yyerror("missing variable indetifier"); } ;
 
-variable_declaration: VAR variable_type ':' argument_declaration { $$ = mknode("VARDEC"); add_args_to_node($$, $2, $4); }
+variable_declaration: VAR variable_type COLON argument_declaration { $$ = mknode("VARDEC"); add_args_to_node($$, $2, $4); }
 
 expression: expression ADD expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); } |
             expression SUB expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); } |
