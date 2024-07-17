@@ -2,15 +2,8 @@ public int foo(args>> int: x, y, z; float: f){
     var int: b <- 3+5, c <- 4, d;
     var float: e;
 
-    if (x > y && true || !x) {
-        x <- x + y;
-        goo(x);
-    }
-    else {
-        y <- x + y + z;
-        z <- y * 2;
-        f <- z;
-    }
+    if (x > y && true || !x) 
+        goo();
 
     b <- x + y + z;
 

@@ -78,10 +78,13 @@ int yycolumnno = 0;
 %right INDEX_OPEN
 
 %type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
-%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments
+%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block
 %type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement argument_declaration
 %type <node> variable_declaration_value variable_id_declaration
 %type <sval> variable_type
+
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
 
 %%
 
@@ -196,34 +199,38 @@ call_arguments: call_arguments COMMA expression { add_child($$, $3); }
                | expression { $$ = mknode("ARGS"); add_child($$, $1); }
                | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); };
 
-function_body: declarations statements return_statement { $$ = $1; $$->token="BODY"; add_nodes_to_node($$, $2); add_child($$, $3);}
-       | declarations return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2); }
-       | declarations statements { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = $1; $$->token="BODY"; add_nodes_to_node($$, $2); }
-       | statements return_statement { $$ = $1; $$->token="BODY"; add_child($$, $2); }
-       | declarations { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = $1; $$->token="BODY"; }
-       | statements { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = $1; $$->token="BODY"; }
+function_body: declarations statements return_statement { $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); add_child($$, $3);}
+       | declarations return_statement { $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_child($$, $2); }
+       | declarations statements { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
+       | statements return_statement { $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_child($$, $2); }
+       | declarations { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_nodes_to_node($$, $1); }
+       | statements { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_nodes_to_node($$, $1); }
        | return_statement { $$ = mknode("BODY"); add_child($$, $1); } 
        | statements declarations { yyerror("Declarations must be before statements"); }
        | return_statement declarations { yyerror("Declarations must be before return statement"); }
        | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
 
-block: declarations statements return_statement { $$ = $1; $$->token="BLOCK"; add_nodes_to_node($$, $2); add_child($$, $3);}
-       | declarations return_statement { $$ = $1; $$->token="BLOCK"; add_child($$, $2); }
-       | declarations statements { $$ = $1; $$->token="BLOCK"; add_nodes_to_node($$, $2); }
-       | statements return_statement { $$ = $1; $$->token="BLOCK"; add_child($$, $2); }
-       | declarations { $$ = $1; $$->token="BLOCK"; }
-       | statements { $$ = $1; $$->token="BLOCK"; }
+block: declarations statements return_statement {$$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); add_child($$, $3);}
+       | declarations return_statement { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_child($$, $2); }
+       | declarations statements { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
+       | statements return_statement { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_child($$, $2); }
+       | declarations { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); }
+       | statements { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); }
        | return_statement { $$ = mknode("BLOCK"); add_child($$, $1); } 
        | statements declarations { yyerror("Declarations must be before statements"); }
        | return_statement declarations { yyerror("Declarations must be before return statement"); }
        | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BLOCK"); add_child($$, mknode("EMPTY")); }
 
-loop_statement: WHILE PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("WHILE"); add_child($$, $3); add_child($$, $6); }
-               | DO BLOCK_OPEN block BLOCK_CLOSE WHILE PAREN_OPEN binary_expression PAREN_CLOSE SEMICOL { $$ = mknode("DO"); add_child($$, $3); add_child($$, $7); }
-               | FOR PAREN_OPEN variable_declaration SEMICOL binary_expression SEMICOL variable_assignment PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("FOR"); add_child($$, $3); add_child($$, $5); add_child($$, $7); add_child($$, $10); }
+loop_statement: WHILE PAREN_OPEN binary_expression PAREN_CLOSE statement_block { $$ = mknode("WHILE"); add_child($$, $3); add_child($$, $5); }
+               | DO statement_block WHILE PAREN_OPEN binary_expression PAREN_CLOSE SEMICOL { $$ = mknode("DO"); add_child($$, $2); add_child($$, $5); }
+               | FOR PAREN_OPEN variable_declaration SEMICOL binary_expression SEMICOL variable_assignment PAREN_CLOSE statement_block{ $$ = mknode("FOR"); add_child($$, $3); add_child($$, $5); add_child($$, $7); add_child($$, $9); }
 
-if_statement: IF PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("IF"); add_child($$, $3); add_child($$, $6); }
-        | IF PAREN_OPEN binary_expression PAREN_CLOSE BLOCK_OPEN block BLOCK_CLOSE ELSE BLOCK_OPEN block BLOCK_CLOSE { $$ = mknode("IF_ELSE"); add_child($$, $3); add_child($$, $6); add_child($$, $10); }
+if_statement: IF PAREN_OPEN binary_expression PAREN_CLOSE statement_block %prec LOWER_THAN_ELSE { $$ = mknode("IF"); add_child($$, $3); add_child($$, $5); }
+        | IF PAREN_OPEN binary_expression PAREN_CLOSE statement_block ELSE statement_block { $$ = mknode("IF_ELSE"); add_child($$, $3); add_child($$, $5); add_child($$, $7); }
+
+statement_block: BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; }
+                | possible_statements { $$ = $1; } 
+                | return_statement { $$ = $1; } ;
 
 binary_expression: binary_expression EQ binary_expression { $$ = mknode("=="); add_child($$, $1); add_child($$, $3); }
                  | binary_expression GRTR binary_expression { $$ = mknode(">"); add_child($$, $1); add_child($$, $3); }
@@ -361,7 +368,7 @@ char* ctos(char c)
     char *result = (char*)malloc(2);
     result[0] = c;
     result[1] = '\0';
-    return result;
+    return result; 
 }
 
 char* itos(int i)
