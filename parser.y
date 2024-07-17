@@ -17,7 +17,19 @@ typedef struct node
     int children_count;
 } node;
 
+typedef struct stack {
+    bool *data;
+    int size;
+    int capacity;
+} stack;
+
+void push(stack stack, bool value);
+bool pop(stack stack);
+
 node *mknode(char *token);
+
+bool return_required = false;
+stack return_required_stack;
 
 void add_child(node *parent, node *child);
 void add_nodes_to_node(node *parent, node *child);
@@ -31,8 +43,6 @@ char* ConcatString(char *s1, char *s2);
 char* ctos(char c);
 char* itos(int i);
 char* ftos(float f);
-
-bool current_function_has_return = false;
 
 int yycolumnno = 0;
 %}
@@ -99,14 +109,16 @@ s: s function {
         add_child($$, $1);
    }
 
-function: privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN function_body BLOCK_CLOSE { 
+function: privacy_of_function return_type IDENTIFIER { push(return_required_stack, return_required); } PAREN_OPEN arguments PAREN_CLOSE is_static BLOCK_OPEN function_body BLOCK_CLOSE { 
                                                                                                             $$ = mknode("FUNC");
                                                                                                             add_child($$, mknode($3));
-                                                                                                            add_child($$, $7);
+                                                                                                            add_child($$, $8);
                                                                                                             add_child($$, $1);
-                                                                                                            add_child($$, $5);
+                                                                                                            add_child($$, $6);
                                                                                                             add_child($$, $2);
-                                                                                                            add_child($$, $9);
+                                                                                                            add_child($$, $10);
+
+                                                                                                            return_required = pop(return_required_stack);
                                                                                                         };
 
 privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
@@ -117,12 +129,12 @@ is_static: COLON STATIC { $$ = mknode("STATIC"); }
                | { $$ = mknode("NON_STATIC"); }
 
 return_type: variable_type  { 
-                                current_function_has_return = true;
+                                return_required = true;
                                 $$ = mknode("RET");
                                 add_child($$, mknode($1)); 
                             };
             | VOID { 
-                    current_function_has_return = false;
+                    return_required = false;
                     $$ = mknode("RETURN");
                     add_child($$, mknode("VOID")); 
                 };
@@ -209,14 +221,14 @@ call_arguments: call_arguments COMMA expression { add_child($$, $3); }
 
 function_body: declarations statements return_statement { $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); add_child($$, $3);}
        | declarations return_statement { $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_child($$, $2); }
-       | declarations statements { if(current_function_has_return) yyerror("Return value is required for this function"); $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
+       | declarations statements { if(return_required) yyerror("Return value is required for this function"); $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
        | statements return_statement { $$ = mknode("BODY"); add_nodes_to_node($$, $1); add_child($$, $2); }
-       | declarations { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_nodes_to_node($$, $1); }
-       | statements { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_nodes_to_node($$, $1); }
+       | declarations { if(return_required) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_nodes_to_node($$, $1); }
+       | statements { if(return_required) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_nodes_to_node($$, $1); }
        | return_statement { $$ = mknode("BODY"); add_child($$, $1); } 
        | statements declarations { yyerror("Declarations must be before statements"); }
        | return_statement declarations { yyerror("Declarations must be before return statement"); }
-       | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
+       | { if(return_required) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
 
 block: code_block_declarations code_block_statements {$$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
        | code_block_statements { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); }
@@ -275,7 +287,7 @@ possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      if_statement { $$ = $1; } |
                      function_call SEMICOL { $$ = $1; };
 
-return_statement: RETURN expression SEMICOL { if(!current_function_has_return) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
+return_statement: RETURN expression SEMICOL {if(!return_required) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
                   | RETURN SEMICOL { $$ = mknode("RETURN"); } ;
 
 %%
@@ -396,4 +408,23 @@ char* ftos(float f)
     char *result = (char*)malloc(11);
     sprintf(result, "%f", f);
     return result;
+}
+
+void push(stack stack, bool value)
+{
+    if(stack.size == stack.capacity)
+    {
+        stack.capacity *= 2;
+        stack.data = (bool*)realloc(stack.data, sizeof(bool) * stack.capacity);
+    }
+
+    stack.data[stack.size++] = value;
+}
+
+bool pop(stack stack)
+{
+    if(stack.size == 0)
+        return false;
+
+    return stack.data[--stack.size];
 }
