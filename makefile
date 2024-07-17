@@ -39,6 +39,7 @@ all: $(EXEC)
 # how to build the executable(compiler)
 $(EXEC): $(YACC_OUT) $(LEX_OUT)
 	$(CC) -o $(EXEC) $(YACC_OUT) $(FLAGS)
+	@make clean
 
 # how to generate lex output
 $(LEX_OUT): $(LEX_SRC)
@@ -48,9 +49,11 @@ $(LEX_OUT): $(LEX_SRC)
 $(YACC_OUT): $(YACC_SRC)
 	$(YACC) -v $(YACC_SRC)
 
+
+
 # clean all generated files
 clean:
-	rm -f $(EXEC) $(LEX_OUT) $(YACC_OUT) 
+	rm -f $(LEX_OUT) $(YACC_OUT) 
 
 # run the compiler
 run: $(EXEC)

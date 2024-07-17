@@ -10,12 +10,6 @@ program: function
 int yylex();
 void yyerror(const char* s);
 
-typedef struct args
-{
-    char **args;
-    int count;
-} args;
-
 typedef struct node
 {
 	char *token;
@@ -26,8 +20,6 @@ typedef struct node
 node *mknode(char *token);
 
 void add_child(node *parent, node *child);
-void add_args(args *a, char *arg);
-void add_args_to_node(node *parent, char *type, args *a);
 void add_nodes_to_node(node *parent, node *child);
 
 void printtree(node *tree, int indent);
@@ -36,9 +28,9 @@ void printParen(int indent);
 
 char* ConcatString(char *s1, char *s2);
 
-char* stoc(char c);
-char* stoi(int i);
-char* stof(float f);
+char* ctos(char c);
+char* itos(int i);
+char* ftos(float f);
 
 bool current_function_has_return = false;
 
@@ -51,7 +43,6 @@ int yycolumnno = 0;
     float rval;
     char cval;
     bool bval;
-    struct args *args;
     struct node *node;
 }
 
@@ -88,9 +79,9 @@ int yycolumnno = 0;
 
 %type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments
-%type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement
-%type <sval> variable_type 
-%type <args> argument_declaration
+%type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement argument_declaration
+%type <node> variable_declaration_value variable_id_declaration
+%type <sval> variable_type
 
 %%
 
@@ -147,22 +138,34 @@ arguments: ARGS arguments_variables { $$ = $2; }
                | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); }
                ;
 
-arguments_variables: arguments_variables SEMICOL variable_type COLON argument_declaration{  add_args_to_node($$, $3, $5); }
+arguments_variables: arguments_variables SEMICOL variable_type COLON argument_declaration{ node* typenode = mknode($3); add_nodes_to_node(typenode, $5); add_child($$, typenode); }
             | arguments_variables SEMICOL { yyerror("Arguments of a function will be separated by a \";\" but no argument was provided after the semicolon"); }
             | variable_type COLON argument_declaration { 
                                                         $$ = mknode("ARGS");
-                                                        add_args_to_node($$, $1, $3);
+                                                        node* typenode = mknode($1); 
+                                                        add_nodes_to_node(typenode, $3); 
+                                                        add_child($$, typenode);
                                                      }
             | variable_type argument_declaration { yyerror("Arguments of a certain type must be separated by a ':' like \"int: x\""); }   
 
-argument_declaration: argument_declaration COMMA IDENTIFIER { add_args($$, $3); }
-                      | IDENTIFIER { add_args($$, $1); }
+argument_declaration: argument_declaration COMMA IDENTIFIER { add_child($$, mknode($3)); }
+                      | IDENTIFIER { $$ = mknode("ARGS"); add_child($$, mknode($1)); }
+
+
 
 variable_assignment: IDENTIFIER ASS expression { $$ = mknode(ConcatString("ASS ", $1)); add_child($$, $3); };
                      | IDENTIFIER ASS { yyerror("missing value for assainment."); }
                      | ASS expression { yyerror("missing variable indetifier"); } ;
 
-variable_declaration: VAR variable_type COLON argument_declaration { $$ = mknode("VARDEC"); add_args_to_node($$, $2, $4); }
+variable_declaration: VAR variable_type COLON variable_id_declaration { $$ = mknode("VARDEC"); node* typenode = mknode($2); add_nodes_to_node(typenode, $4); add_child($$, typenode); }
+                      | VAR COLON variable_id_declaration { yyerror("Missing variable type"); }
+                      | VAR variable_id_declaration { yyerror("Missing variable type");  }
+
+variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_declaration_value { node* varnode = mknode($3); add_child(varnode, $4); add_child($$, varnode); }
+                      | IDENTIFIER variable_declaration_value { $$ = mknode("ARGS"); node* varnode = mknode($1); add_child(varnode, $2); add_child($$, varnode); }
+
+variable_declaration_value: ASS expression { $$ = $2; }
+                            | {$$ = NULL; };
 
 expression: expression ADD expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); } |
             expression SUB expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); } |
@@ -172,10 +175,10 @@ expression: expression ADD expression { $$ = mknode("+"); add_child($$, $1); add
             values { $$ = $1; } 
 
 values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
-        LIT_CHAR { $$ = mknode(stoc($1)); } |
-        LIT_INT { $$ = mknode(stoi($1)); } |
-        LIT_DOUBLE { $$ = mknode(stof($1)); } |
-        LIT_FLOAT { $$ = mknode(stof($1)); } |
+        LIT_CHAR { $$ = mknode(ctos($1)); } |
+        LIT_INT { $$ = mknode(itos($1)); } |
+        LIT_DOUBLE { $$ = mknode(ftos($1)); } |
+        LIT_FLOAT { $$ = mknode(ftos($1)); } |
         LIT_STRING { $$ = mknode($1); } |
         NULL_TOKEN { $$ = mknode("NULL"); } |
         STRLEN IDENTIFIER STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
@@ -250,7 +253,7 @@ functions_declarations: function { $$ = mknode("FUNC_DECS"); add_child($$, $1); 
 possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      loop_statement { $$ = $1; } |
                      if_statement { $$ = $1; } |
-                     function_call SEMICOL { $$ = $1; } ;
+                     function_call SEMICOL { $$ = $1; };
 
 return_statement: RETURN expression SEMICOL { if(!current_function_has_return) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
                   | RETURN SEMICOL { $$ = mknode("RETURN"); } ;
@@ -299,37 +302,6 @@ void add_child(node *parent, node *child)
 
     parent->children[parent->children_count] = child;
     parent->children_count++;
-}
-
-void add_args(args *a, char *arg)
-{
-    char* newstr = (char*)malloc(sizeof(arg) + 1);
-    strcpy(newstr, arg);
-
-    if(a->count == 0)
-    {
-        a->args = (char**)malloc(sizeof(char*));
-    }
-    else
-    {
-        a->args = (char**)realloc(a->args, sizeof(char*) * (a->count + 1));
-    }
-
-    a->args[a->count] = (char*)malloc(sizeof(newstr) + 1);
-    strcpy(a->args[a->count], newstr);
-    a->count++;
-}
-
-void add_args_to_node(node *parent, char *type, args *a)
-{
-    node *newnode = mknode(type);
-    add_child(parent, newnode);
-
-    for(int i = 0; i < a->count; i++)
-    {
-        node *arg = mknode(a->args[i]);
-        add_child(newnode, arg);
-    }
 }
 
 void add_nodes_to_node(node *parent, node *child)
@@ -384,7 +356,7 @@ char* ConcatString(char *s1, char *s2)
     return result;
 }
 
-char* stoc(char c)
+char* ctos(char c)
 {
     char *result = (char*)malloc(2);
     result[0] = c;
@@ -392,14 +364,14 @@ char* stoc(char c)
     return result;
 }
 
-char* stoi(int i)
+char* itos(int i)
 {
     char *result = (char*)malloc(11);
     sprintf(result, "%d", i);
     return result;
 }
 
-char* stof(float f)
+char* ftos(float f)
 {
     char *result = (char*)malloc(11);
     sprintf(result, "%f", f);

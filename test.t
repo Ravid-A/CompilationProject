@@ -1,5 +1,6 @@
 public int foo(args>> int: x, y, z; float: f){
-    var int: b;
+    var int: b <- 3+5, c <- 4, d;
+    var float: e;
 
     if (x > y && true || !x) {
         x <- x + y;
