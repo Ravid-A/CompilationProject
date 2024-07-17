@@ -79,7 +79,7 @@ int yycolumnno = 0;
 %type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block
 %type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement argument_declaration
-%type <node> variable_declaration_value variable_id_declaration block_declarations
+%type <node> variable_declaration_value variable_id_declaration block_declarations code_block_statements code_block_statement
 %type <sval> variable_type
 
 %nonassoc LOWER_THAN_ELSE
@@ -218,16 +218,18 @@ function_body: declarations statements return_statement { $$ = mknode("BODY"); a
        | return_statement declarations { yyerror("Declarations must be before return statement"); }
        | { if(current_function_has_return) yyerror("Return value is required for this function");  $$ = mknode("BODY"); add_child($$, mknode("EMPTY")); }
 
-block: block_declarations statements return_statement {$$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); add_child($$, $3);}
-       | block_declarations return_statement { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_child($$, $2); }
-       | block_declarations statements { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
-       | statements return_statement { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_child($$, $2); }
+block: block_declarations code_block_statements {$$ = mknode("BLOCK"); add_nodes_to_node($$, $1); add_nodes_to_node($$, $2); }
+       | code_block_statements { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); }
        | block_declarations { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); }
-       | statements { $$ = mknode("BLOCK"); add_nodes_to_node($$, $1); }
-       | return_statement { $$ = mknode("BLOCK"); add_child($$, $1); } 
-       | statements block_declarations { yyerror("Declarations must be before statements"); }
-       | return_statement block_declarations { yyerror("Declarations must be before return statement"); }
+       | code_block_statements block_declarations { yyerror("Declarations must be before statements"); }
        | { $$ = mknode("BLOCK"); add_child($$, mknode("EMPTY")); }
+
+code_block_statements: code_block_statements code_block_statement  { add_child($$, $2); }
+                    | code_block_statement { $$ = mknode("STATEMENTS"); add_child($$, $1); }
+
+code_block_statement: block { $$ = $1; }
+                    | possible_statements { $$ = $1; }
+                    | return_statement { $$ = $1; }
 
 block_declarations: variable_declarations { $$ = $1; }
                     | function { yyerror("Function declaration cannot be inside a block"); }

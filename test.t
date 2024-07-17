@@ -4,10 +4,7 @@ public int foo(args>> int: x, y, z; float: f){
 
     if (x > y && true || !x) 
     {
-        /* private void a(args>> int: x, y, z; float: f)
-        {
-
-        } */
+        return 3;
 
         b <- 3;
     }
