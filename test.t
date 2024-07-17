@@ -4,9 +4,13 @@ public int foo(args>> int: x, y, z; float: f){
 
     if (x > y && true || !x) 
     {
-        return 3;
-
-        b <- 3;
+        {}
+        
+        private void hoo(args>> int: x, y, z; float: f)
+        {
+            var int: a;
+            a <- 3;
+        }
     }
 
     b[3] <- 3;
