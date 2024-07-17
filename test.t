@@ -3,9 +3,18 @@ public int foo(args>> int: x, y, z; float: f){
     var float: e;
 
     if (x > y && true || !x) 
-        goo(d--5);
+    {
+        /* private void a(args>> int: x, y, z; float: f)
+        {
 
-    b <- x + y + z;
+        } */
+
+        b <- 3;
+    }
+
+    b[3] <- 3;
+
+    *b <- 3;
 
     return b;
 }
