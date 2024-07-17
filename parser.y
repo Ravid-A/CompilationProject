@@ -69,11 +69,10 @@ int yycolumnno = 0;
 %left AND
 %left EQ NOT_EQ
 %left LESS LESS_EQ GRTR GRTR_EQ
-%left ADD SUB
-%left MUL DIV
+%left '+' '-' '*'
+%left DIV
 %left MOD
 %right NOT
-%right DEREF
 %right REF
 %right INDEX_OPEN
 
@@ -85,6 +84,8 @@ int yycolumnno = 0;
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
+%nonassoc DEREF
+%nonassoc UPLUS UMINUS
 
 %%
 
@@ -170,9 +171,9 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
 variable_declaration_value: ASS expression { $$ = $2; }
                             | {$$ = NULL; };
 
-expression: expression ADD expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); } |
-            expression SUB expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); } |
-            expression MUL expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); } |
+expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); } |
+            expression '-' expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); } |
+            expression '*' expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); } |
             expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); } |
             expression MOD expression { $$ = mknode("%"); add_child($$, $1); add_child($$, $3); } |
             values { $$ = $1; } 
@@ -188,8 +189,10 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
         STRLEN LIT_STRING STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
         IDENTIFIER { $$ = mknode($1); } |
         PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
-        REF IDENTIFIER { $$ = mknode(ConcatString("REF ", $2)); } |
-        DEREF IDENTIFIER { $$ = mknode(ConcatString("DEREF ", $2)); } |
+        REF expression { $$ = mknode("REF"); add_child($$, $2); } |
+        '*' expression %prec DEREF { $$ = mknode("DEREF"); add_child($$, $2); } |
+        '+' expression %prec UPLUS { $$ = $2; } |
+        '-' expression %prec UMINUS { $$ = mknode("-"); add_child($$, $2); } |
         IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); } |
         function_call { $$ = $1; } ;
 

@@ -50,12 +50,8 @@ void { yycolumnno += yyleng; return VOID; }
 "!" { yycolumnno += yyleng; return NOT; }
 "!=" { yycolumnno += yyleng; return NOT_EQ; }
 "||" { yycolumnno += yyleng; return OR; }
-"&"[.]+ { yycolumnno += yyleng; return REF; }
-\*[.]+ { yycolumnno += yyleng; return DEREF; }
+"&" { yycolumnno += yyleng; return REF; }
 "/" { yycolumnno += yyleng; return DIV; }
-"-" { yycolumnno += yyleng; return SUB; }
-"+" { yycolumnno += yyleng; return ADD; }
-\* { yycolumnno += yyleng; return MUL; }
 "%" { yycolumnno += yyleng; return MOD; }
 : { yycolumnno += yyleng; return COLON; }
 true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
@@ -78,6 +74,6 @@ true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; re
 \/\*(.|{newline})*\*\/ { yycolumnno += yyleng; /* ignore comments */ }
 [ \t\s] { yycolumnno += yyleng; /* ignore whitespace */ }
 {newline} { yycolumnno = 0; yylineno++; }
-. { yycolumnno += yyleng; yyerror("INVALID TOKEN"); }
+. { yycolumnno += yyleng; return yytext[0]; }
 
 %%

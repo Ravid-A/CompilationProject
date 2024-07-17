@@ -3,7 +3,7 @@ public int foo(args>> int: x, y, z; float: f){
     var float: e;
 
     if (x > y && true || !x) 
-        goo();
+        goo(d--5);
 
     b <- x + y + z;
 
