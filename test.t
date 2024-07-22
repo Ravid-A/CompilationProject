@@ -1,12 +1,10 @@
-public int foo(args>> int: x, y, z; float: f){
+public void foo(args>> int: x, y, z; float: f){
     var int: b <- 3+5, c <- 4, d;
     var float: e;
 
-    b[3] <- 3;
-
-    *b <- 3;
-
-    return b;
+    private int goo(args>> int: x, y, z; float: f){
+        return 3;
+    }
 }
 private int goo(args>> int: x): static{ 
     foo(x, 2, 3, 4.0);
