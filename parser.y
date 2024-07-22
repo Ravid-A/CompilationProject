@@ -10,11 +10,27 @@ program: function
 int yylex();
 void yyerror(const char* s);
 
+typedef enum Type 
+{
+    TYPE_INT,
+    TYPE_CHAR,
+    TYPE_FLOAT,
+    TYPE_DOUBLE,
+    TYPE_STRING,
+    TYPE_BOOL,
+    TYPE_PTR_INT,
+    TYPE_PTR_FLOAT,
+    TYPE_PTR_DOUBLE,
+    TYPE_PTR_CHAR
+} Type;
+
 typedef struct node
 {
 	char *token;
 	struct node **children;
     int children_count;
+    Type type;
+    
 } node;
 
 typedef struct stack {

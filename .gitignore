@@ -13,3 +13,6 @@ output
 *.zip
 
 .DS_Store
+
+*.pdf
+part*/
