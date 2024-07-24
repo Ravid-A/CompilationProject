@@ -56,7 +56,7 @@ program: function
 
 %%
 
-start: s { printf("ACCEPT\n\n"); printtree($1, 0); }
+start: s { if(!check_main_exists(current_scope)) yyerror("There is no main function");  printf("ACCEPT"); print_tree_to_file($1); kill_scope(current_scope); }
 
 s: s function {
         add_child($$, $2);
@@ -66,25 +66,23 @@ s: s function {
         add_child($$, $1);
    }
 
-function:   privacy_of_function return_type IDENTIFIER { push(return_required_stack, return_required); } 
-            PAREN_OPEN arguments PAREN_CLOSE is_static  {
+function:   privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static  {
                                                             if(check_symbol(current_scope, $3)) {
                                                                 yyerror("Function already exists");
                                                             }
 
-                                                            add_symbol(current_scope, $3, SYMBOL_FUNCTION, $2->type);
+                                                            add_function(current_scope, $3, $2->type, $5, $1, $7);
                                                             make_scope();
                                                         } 
             BLOCK_OPEN function_body BLOCK_CLOSE { 
                                                     $$ = mknode("FUNC");
                                                     add_child($$, mknode($3));
-                                                    add_child($$, $8);
+                                                    add_child($$, $7);
                                                     add_child($$, $1);
-                                                    add_child($$, $6);
+                                                    add_child($$, $5);
                                                     add_child($$, $2);
-                                                    add_child($$, $11);
+                                                    add_child($$, $10);
 
-                                                    return_required = pop(return_required_stack);
                                                     exit_scope();
                                                 };
 
@@ -96,13 +94,11 @@ is_static: COLON STATIC { $$ = mknode("STATIC"); }
                | { $$ = mknode("NON_STATIC"); }
 
 return_type: variable_type  { 
-                                return_required = true;
                                 $$ = mknode("RET");
                                 add_child($$, $1); 
                                 $$->type = $1->type;
                             };
             | VOID { 
-                    return_required = false;
                     $$ = mknode("RETURN");
                     add_child($$, mknode("VOID")); 
                     $$->type = TYPE_VOID;
@@ -157,7 +153,7 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                                                     yyerror("Symbol is already in use");
                                                                                                 }
 
-                                                                                                add_symbol(current_scope, $3, SYMBOL_VARIABLE, $1->type);
+                                                                                                add_variable(current_scope, $3, $1->type);
 
                                                                                                 node* varnode = mknode($3); 
                                                                                                 add_child(varnode, $4); 
@@ -168,7 +164,7 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                     yyerror("Symbol is already in use");
                                                                 }
 
-                                                                add_symbol(current_scope, $1, SYMBOL_VARIABLE, TYPE_VOID);
+                                                                add_variable(current_scope, $1, $$->type);
 
                                                                 $$ = mknode("ARGS"); 
                                                                 node* varnode = mknode($1); 
@@ -222,7 +218,7 @@ function_body: declarations statements return_statement {
     add_child($$, $2);
 }
 | declarations statements { 
-    if(return_required) yyerror("Return value is required for this function"); 
+    if(check_return_required(current_scope)) yyerror("Return value is required for this function"); 
     $$ = mknode("BODY"); 
     add_nodes_to_node($$, $1); 
     add_nodes_to_node($$, $2);
@@ -233,12 +229,12 @@ function_body: declarations statements return_statement {
     add_child($$, $2);
 }
 | declarations { 
-    if(return_required) yyerror("Return value is required for this function");  
+    if(check_return_required(current_scope)) yyerror("Return value is required for this function");  
     $$ = mknode("BODY"); 
     add_nodes_to_node($$, $1);
 }
 | statements { 
-    if(return_required) yyerror("Return value is required for this function");  
+    if(check_return_required(current_scope)) yyerror("Return value is required for this function");  
     $$ = mknode("BODY"); 
     add_nodes_to_node($$, $1);
 }
@@ -253,7 +249,7 @@ function_body: declarations statements return_statement {
     yyerror("Declarations must be before return statement");
 }
 | { 
-    if(return_required) yyerror("Return value is required for this function");  
+    if(check_return_required(current_scope)) yyerror("Return value is required for this function");  
     $$ = mknode("BODY"); 
     add_child($$, mknode("EMPTY"));
 }
@@ -330,7 +326,16 @@ possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      if_statement { $$ = $1; } |
                      function_call SEMICOL { $$ = $1; };
 
-return_statement: RETURN expression SEMICOL {if(!return_required) yyerror("Return value is not allowed for this function"); $$ = mknode("RETURN"); add_child($$, $2); }
+return_statement: RETURN expression SEMICOL { 
+                                                if(!check_return_required(current_scope)) 
+                                                    yyerror("Return value is not allowed for this function"); 
+
+                                                // if(get_return_type(current_scope) != $2->type) 
+                                                //     yyerror("Return type does not match the function return type");
+
+                                                $$ = mknode("RETURN"); 
+                                                add_child($$, $2); 
+                                            }
                   | RETURN SEMICOL { $$ = mknode("RETURN"); } ;
 
 %%

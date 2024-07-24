@@ -35,20 +35,15 @@ typedef struct node
     Type type;
 } node;
 
-typedef struct stack {
-    bool *data;
-    int size;
-    int capacity;
-} stack;
-
-void push(stack stack, bool value);
-bool pop(stack stack);
-
 typedef struct Symbol
 {
     char *name;
     SymbolType type;
     Type return_type;
+    Type* args;
+    int args_count;
+    bool is_public;
+    bool is_static;
     struct Symbol *next;
 } Symbol;
 
@@ -60,56 +55,15 @@ typedef struct Scope
 
 Scope *current_scope;
 
-void make_scope()
-{
-    Scope *new_scope = (Scope*)malloc(sizeof(Scope));
-    new_scope->symbols = NULL;
-    new_scope->parent = current_scope;
-    current_scope = new_scope;
-}
-
-void add_symbol(Scope *scope, char *name, SymbolType type, Type return_type)
-{
-    Symbol *new_symbol = (Symbol*)malloc(sizeof(Symbol));
-    new_symbol->name = name;
-    new_symbol->type = type;
-    new_symbol->return_type = return_type;
-    new_symbol->next = scope->symbols;
-    scope->symbols = new_symbol;
-}
-
-void exit_scope()
-{
-    Scope *parent = current_scope->parent;
-    free(current_scope);
-    current_scope = parent;
-}
-
-bool check_symbol(Scope *scope, char *name)
-{
-    if(!scope)
-        return false;
-    Symbol *current = scope->symbols;
-    while(current)
-    {
-        if(strcmp(current->name, name) == 0)
-            return true;
-        current = current->next;
-    }
-    return check_symbol(scope->parent, name);
-}
-
 node *mknode(char *token);
-
-bool return_required = false;
-stack return_required_stack;
+void kill_node(node *node);
 
 void add_child(node *parent, node *child);
 void add_nodes_to_node(node *parent, node *child);
 
-void printtree(node *tree, int indent);
-
-void printParen(int indent);
+void printtree(node *tree, int indent, FILE *file);
+void print_tree_to_file(node *tree);
+void printIndent(int indent, FILE *file);
 
 char* ConcatString(char *s1, char *s2);
 
@@ -117,7 +71,20 @@ char* ctos(char c);
 char* itos(int i);
 char* ftos(float f);
 
+void make_scope();
+void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static);
+void add_variable(Scope *scope, char *name, Type type);
+void exit_scope();
+bool check_symbol(Scope *scope, char *name);
+bool check_main_exists(Scope *scope);
+Type get_return_type(Scope *scope);
+bool check_return_required(Scope *scope);
+void kill_scope(Scope *scope);
+void kill_symbol(Symbol *symbol);
+
 int yycolumnno = 0;
+
+// Node functions
 
 node *mknode(char *token)
 {
@@ -128,6 +95,21 @@ node *mknode(char *token)
     newnode->children = NULL;
     newnode->children_count = 0;
     return newnode;
+}
+
+void kill_node(node *node)
+{
+    if(!node)
+        return;
+
+    for(int i = 0; i < node->children_count; i++)
+    {
+        kill_node(node->children[i]);
+    }
+
+    free(node->token);
+    free(node->children);
+    free(node);
 }
 
 void add_child(node *parent, node *child)
@@ -156,41 +138,56 @@ void add_nodes_to_node(node *parent, node *child)
     }
 }
 
-void printtree(node *tree, int indent)
+void print_tree_to_file(node *tree)
+{
+    FILE *file = fopen("tree.txt", "w");
+    if(file == NULL)
+    {
+        yyerror("Could not open file");
+    }
+
+    printtree(tree, 0, file);
+
+    fclose(file);
+}
+
+void printtree(node *tree, int indent, FILE *file)
 {
     if(!tree)
         return;
 
     bool print_paren = false;
 
-    printParen(indent);
+    printIndent(indent, file);
 
     print_paren = tree->children_count > 0;
 
     if(print_paren)
-        printf("(");        
+        fprintf(file, "(");   
 
-    printf("%s\n", tree->token);
+    fprintf(file, "%s\n", tree->token);
     
     for(int i = 0; i < tree->children_count; i++)
     {
-        printtree(tree->children[i], indent + 1);
+        printtree(tree->children[i], indent + 1, file);
     }
 
     if(print_paren)
     {
-        printParen(indent);
-        printf(")\n");
+        printIndent(indent, file);
+        fprintf(file, ")\n");
     }
 }
 
-void printParen(int indent)
+void printIndent(int indent, FILE *file)
 {
     for(int i = 0; i < indent; i++)
     {
-        printf(" \t");
+        fprintf(file, " \t");
     }
 }
+
+// String functions
 
 char* ConcatString(char *s1, char *s2)
 {
@@ -222,21 +219,160 @@ char* ftos(float f)
     return result;
 }
 
-void push(stack stack, bool value)
-{
-    if(stack.size == stack.capacity)
-    {
-        stack.capacity *= 2;
-        stack.data = (bool*)realloc(stack.data, sizeof(bool) * stack.capacity);
-    }
+// Scope functions
 
-    stack.data[stack.size++] = value;
+void make_scope()
+{
+    Scope *new_scope = (Scope*)malloc(sizeof(Scope));
+    new_scope->symbols = NULL;
+    new_scope->parent = current_scope;
+    current_scope = new_scope;
 }
 
-bool pop(stack stack)
+void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static)
 {
-    if(stack.size == 0)
-        return false;
+    if(check_symbol(scope, name))
+    {
+        yyerror("Symbol already exists");
+    }
 
-    return stack.data[--stack.size];
+    Symbol *new_symbol = (Symbol*)malloc(sizeof(Symbol));
+    new_symbol->name = name;
+    new_symbol->type = SYMBOL_FUNCTION;
+    new_symbol->return_type = return_type;
+    new_symbol->is_public = (strcmp(is_public->token, "PUBLIC") == 0);
+    new_symbol->is_static = (strcmp(is_static->token, "STATIC") == 0);
+
+    if(args)
+    {
+        new_symbol->args = (Type*)malloc(sizeof(Type) * args->children_count);
+
+        int index = 0;
+        for(int i = 0; i < args->children_count; i++)
+        {
+            node* arg = args->children[i];
+            for(int j = 0; j < arg->children_count; j++)
+            {
+                new_symbol->args[index++] = arg->type;
+            }
+        }
+        new_symbol->args_count = index;
+    }
+    else
+    {
+        new_symbol->args_count = 0;
+        new_symbol->args = NULL;
+    }
+
+    new_symbol->next = scope->symbols;
+    scope->symbols = new_symbol;
+}
+
+void add_variable(Scope *scope, char *name, Type type)
+{
+    Symbol *new_symbol = (Symbol*)malloc(sizeof(Symbol));
+    new_symbol->name = name;
+    new_symbol->type = SYMBOL_VARIABLE;
+    new_symbol->return_type = type;
+    new_symbol->next = scope->symbols;
+    scope->symbols = new_symbol;
+}
+
+void exit_scope()
+{
+    Scope *parent = current_scope->parent;
+    kill_scope(current_scope);
+    current_scope = parent;
+}
+
+bool check_symbol(Scope *scope, char *name)
+{
+    if(!scope)
+        return false;
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        if(strcmp(current->name, name) == 0)
+            return true;
+        current = current->next;
+    }
+    return check_symbol(scope->parent, name);
+}
+
+bool check_main_exists(Scope *scope)
+{
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        if(current->type == SYMBOL_FUNCTION && strcmp(current->name, "main") == 0)
+        {
+            if(!current->is_public)
+            {
+                yyerror("Main function must be public");
+            }
+
+            if(!current->is_static)
+            {
+                yyerror("Main function must be static");
+            }
+
+            if(current->args_count != 0)
+            {
+                yyerror("Main function must have no arguments");
+            }
+
+            if(current->return_type != TYPE_VOID)
+            {
+                yyerror("Main function must be a void function");
+            }
+
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
+}
+
+Type get_return_type(Scope *scope)
+{
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        if(current->type == SYMBOL_FUNCTION)
+        {
+            return current->return_type;
+        }
+        current = current->next;
+    }
+    return get_return_type(scope->parent);
+}
+
+bool check_return_required(Scope *scope)
+{
+    Scope *current = scope;
+    if(scope->parent)
+    {
+        current = scope->parent;
+    } 
+
+    return get_return_type(current) != TYPE_VOID;
+}
+
+void kill_scope(Scope *scope)
+{
+    //dont touch the parent
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        Symbol *next = current->next;
+        kill_symbol(current);
+        current = next;
+    }
+    free(scope);
+}
+
+void kill_symbol(Symbol *symbol)
+{
+    free(symbol->name);
+    free(symbol);
 }

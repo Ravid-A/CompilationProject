@@ -5,7 +5,7 @@ y.output
 
 # my doc files
 tree
-output
+tree.txt
 
 # vscode
 .vscode

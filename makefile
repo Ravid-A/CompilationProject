@@ -57,6 +57,6 @@ clean:
 
 # run the compiler
 run: $(EXEC)
-	./$(EXEC) < $(TEST_FILE) > output
+	./$(EXEC) < $(TEST_FILE)
 
 .PHONY: all run clean
