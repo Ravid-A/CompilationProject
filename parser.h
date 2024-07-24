@@ -74,13 +74,19 @@ char* ftos(float f);
 void make_scope();
 void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static);
 void add_variable(Scope *scope, char *name, Type type);
+void add_arguments_to_scope(Scope *scope, node *args);
 void exit_scope();
-bool check_symbol(Scope *scope, char *name);
+
+bool check_symbol(Scope *scope, char *name, SymbolType type);
+bool check_symbol_recursive(Scope *scope, char *name, SymbolType type);
+Symbol *get_symbol(Scope *scope, char *name, SymbolType type);
 bool check_main_exists(Scope *scope);
 Type get_return_type(Scope *scope);
 bool check_return_required(Scope *scope);
 void kill_scope(Scope *scope);
 void kill_symbol(Symbol *symbol);
+
+bool is_pointer(Symbol *symbol);
 
 int yycolumnno = 0;
 
@@ -231,7 +237,7 @@ void make_scope()
 
 void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static)
 {
-    if(check_symbol(scope, name))
+    if(check_symbol(scope, name, SYMBOL_FUNCTION))
     {
         yyerror("Symbol already exists");
     }
@@ -278,6 +284,19 @@ void add_variable(Scope *scope, char *name, Type type)
     scope->symbols = new_symbol;
 }
 
+void add_arguments_to_scope(Scope *scope, node *args)
+{
+    for(int i = 0; i < args->children_count; i++)
+    {
+        node* arg = args->children[i];
+        for(int j = 0; j < arg->children_count; j++)
+        {
+            char* name = strdup(arg->children[j]->token);
+            add_variable(scope, name, arg->type);
+        }
+    }
+}
+
 void exit_scope()
 {
     Scope *parent = current_scope->parent;
@@ -285,10 +304,26 @@ void exit_scope()
     current_scope = parent;
 }
 
-bool check_symbol(Scope *scope, char *name)
+bool check_symbol(Scope *scope, char *name, SymbolType type)
 {
     if(!scope)
         return false;
+
+    // only 1 main function in the program and in the global scope
+    if(strcmp(name, "main") == 0)
+    {
+        if(type == SYMBOL_FUNCTION && scope->parent)
+        {
+            yyerror("Main function must be in the global scope");
+        }
+
+        if(type == SYMBOL_VARIABLE)
+        {
+            yyerror("main is a reserved keyword");
+        }
+    }
+
+
     Symbol *current = scope->symbols;
     while(current)
     {
@@ -296,7 +331,33 @@ bool check_symbol(Scope *scope, char *name)
             return true;
         current = current->next;
     }
-    return check_symbol(scope->parent, name);
+    return false;
+}
+
+bool check_symbol_recursive(Scope *scope, char *name, SymbolType type)
+{
+    if(!scope)
+        return false;
+
+    if(check_symbol(scope, name, type))
+        return true;
+
+    return check_symbol_recursive(scope->parent, name, type);
+}
+
+Symbol *get_symbol(Scope *scope, char *name, SymbolType type)
+{
+    if(!scope)
+        return NULL;
+
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        if(strcmp(current->name, name) == 0 && current->type == type)
+            return current;
+        current = current->next;
+    }
+    return get_symbol(scope->parent, name, type);
 }
 
 bool check_main_exists(Scope *scope)
@@ -375,4 +436,12 @@ void kill_symbol(Symbol *symbol)
 {
     free(symbol->name);
     free(symbol);
+}
+
+// Helper functions
+
+bool is_pointer(Symbol *symbol)
+{
+    printf("return type: %d\n", symbol->return_type);
+    return symbol->return_type == TYPE_PTR_INT || symbol->return_type == TYPE_PTR_FLOAT || symbol->return_type == TYPE_PTR_DOUBLE || symbol->return_type == TYPE_PTR_CHAR;
 }

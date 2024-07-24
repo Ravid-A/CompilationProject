@@ -1,19 +1,13 @@
 public void foo(args>> int: x, y, z; float: f){
-    var int: b <- 3+5, c <- 4, d;
+    var int*: b <- 3+5, c <- 4, d;
     var float: e;
-
-    private int goo(args>> int: x, y, z; float: f){
-        return 3;
-    }
-    private void goo2(args>> int: x, y, z; float: f){
-        var int: a;
-    }
+    var int: g;
 }
 
 private int goo(args>> int: x): static{ 
-    public void foo2(args>> int: x, y, z; float: f){
-        var int: b <- 3+5, c <- 4, d;
-        var float: e;
+    var int : b;
+    public void foo(args>> int: x, y, z; float: f){
+        b <- 3+5;
     }
     
     barr(x, 2, 3, 4.0);

@@ -51,7 +51,7 @@ program: function
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
-%nonassoc DEREF
+%nonassoc PTR
 %nonassoc UPLUS UMINUS
 
 %%
@@ -67,12 +67,13 @@ s: s function {
    }
 
 function:   privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static  {
-                                                            if(check_symbol(current_scope, $3)) {
+                                                            if(check_symbol(current_scope, $3, SYMBOL_FUNCTION)) {
                                                                 yyerror("Function already exists");
                                                             }
 
                                                             add_function(current_scope, $3, $2->type, $5, $1, $7);
                                                             make_scope();
+                                                            add_arguments_to_scope(current_scope, $5);
                                                         } 
             BLOCK_OPEN function_body BLOCK_CLOSE { 
                                                     $$ = mknode("FUNC");
@@ -134,9 +135,23 @@ argument_declaration: argument_declaration COMMA IDENTIFIER { add_child($$, mkno
 
 
 
-variable_assignment: IDENTIFIER ASS expression { $$ = mknode(ConcatString("ASS ", $1)); add_child($$, $3); };
-                     | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS expression { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); node* ass = mknode("ASS"); add_child(ass, $6); add_child($$, ass); };
-                     | '*' %prec DEREF IDENTIFIER ASS expression { $$ = mknode("DEREF"); add_child($$, mknode($2)); node* ass = mknode("ASS"); add_child(ass, $4); add_child($$, ass); }
+variable_assignment: IDENTIFIER ASS expression { if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) yyerror("Variable must be declared before the assignment statement"); $$ = mknode(ConcatString("ASS ", $1)); add_child($$, $3); };
+                     | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS expression { if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) yyerror("Variable must be declared before the assignment statement"); $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); node* ass = mknode("ASS"); add_child(ass, $6); add_child($$, ass); };
+                     | '*' %prec PTR IDENTIFIER ASS expression    { 
+                                                                        if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
+                                                                            yyerror("Variable must be declared before the assignment statement");
+
+                                                                        Symbol *sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
+                                                                        if(!is_pointer(sym))
+                                                                            yyerror("Deref is only available for pointers");
+
+
+                                                                        $$ = mknode("DEREF"); 
+                                                                        add_child($$, mknode($2)); 
+                                                                        node* ass = mknode("ASS"); 
+                                                                        add_child(ass, $4); 
+                                                                        add_child($$, ass); 
+                                                                    }
                      | IDENTIFIER ASS { yyerror("missing value for assainment."); }
                      | '*' %prec DEREF IDENTIFIER ASS { yyerror("missing value for assainment."); }
                      | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS { yyerror("missing value for assainment."); }
@@ -148,7 +163,7 @@ variable_declaration: VAR variable_type COLON variable_id_declaration { $$ = mkn
                       | VAR variable_id_declaration { yyerror("Missing variable type");  }
 
 variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_declaration_value { 
-                                                                                                if(check_symbol(current_scope, $3))
+                                                                                                if(check_symbol(current_scope, $3, SYMBOL_VARIABLE))
                                                                                                 {
                                                                                                     yyerror("Symbol is already in use");
                                                                                                 }
@@ -159,7 +174,7 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                                                 add_child(varnode, $4); 
                                                                                                 add_child($$, varnode); 
                                                                                              }
-                      | IDENTIFIER variable_declaration_value { if(check_symbol(current_scope, $1))
+                      | IDENTIFIER variable_declaration_value { if(check_symbol(current_scope, $1, SYMBOL_VARIABLE))
                                                                 {
                                                                     yyerror("Symbol is already in use");
                                                                 }
