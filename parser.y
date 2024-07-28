@@ -136,7 +136,21 @@ argument_declaration: argument_declaration COMMA IDENTIFIER { add_child($$, mkno
 
 
 variable_assignment: IDENTIFIER ASS expression { if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) yyerror("Variable must be declared before the assignment statement"); $$ = mknode(ConcatString("ASS ", $1)); add_child($$, $3); };
-                     | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS expression { if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) yyerror("Variable must be declared before the assignment statement"); $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); node* ass = mknode("ASS"); add_child(ass, $6); add_child($$, ass); };
+                     | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS expression { 
+                                                                                        if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
+                                                                                            yyerror("Variable must be declared before the assignment statement");
+
+                                                                                        Symbol *sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
+                                                                                        if(sym->return_type != TYPE_STRING)
+                                                                                            yyerror("Index in array can only be used on a string variable.");
+                                                                                            
+
+                                                                                        $$ = mknode(ConcatString("INDEX ", $1)); 
+                                                                                        add_child($$, $3); 
+                                                                                        node* ass = mknode("ASS"); 
+                                                                                        add_child(ass, $6); 
+                                                                                        add_child($$, ass); 
+                                                                                    };
                      | '*' %prec PTR IDENTIFIER ASS expression    { 
                                                                         if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
                                                                             yyerror("Variable must be declared before the assignment statement");
@@ -215,7 +229,19 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
         IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); } |
         function_call { $$ = $1; } ;
 
-function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE { $$ = mknode("FUNC_CALL"); add_child($$, mknode($1)); add_child($$, $3); }
+function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE { 
+                                                                    if(!check_symbol_recursive(current_scope, $1, SYMBOL_FUNCTION)) 
+                                                                        yyerror("Function must be declared before the call statement");
+
+                                                                    Symbol* sym = get_symbol(current_scope, $1, SYMBOL_FUNCTION);
+
+                                                                    if(sym->args_count != $3->children_count)
+                                                                        yyerror("Function arguments count does not match the function declaration");
+
+                                                                    $$ = mknode("FUNC_CALL"); 
+                                                                    add_child($$, mknode($1)); 
+                                                                    add_child($$, $3); 
+                                                                }
 
 call_arguments: call_arguments COMMA expression { add_child($$, $3); }
                | expression { $$ = mknode("ARGS"); add_child($$, $1); }

@@ -53,6 +53,9 @@ void { yycolumnno += yyleng; return VOID; }
 "&" { yycolumnno += yyleng; return REF; }
 "/" { yycolumnno += yyleng; return DIV; }
 "%" { yycolumnno += yyleng; return MOD; }
+"*" { yycolumnno += yyleng; return yytext[0]; }
+"+" { yycolumnno += yyleng; return yytext[0]; }
+"-" { yycolumnno += yyleng; return yytext[0]; }
 : { yycolumnno += yyleng; return COLON; }
 true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; return LIT_BOOL; }
 {char} { yycolumnno += yyleng; yylval.cval = yytext[1]; return LIT_CHAR; }
@@ -74,6 +77,6 @@ true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; re
 \/\*(.|{newline})*\*\/ { yycolumnno += yyleng; /* ignore comments */ }
 [ \t\s] { yycolumnno += yyleng; /* ignore whitespace */ }
 {newline} { yycolumnno = 0; yylineno++; }
-. { yycolumnno += yyleng; return yytext[0]; }
+. { yyerror("Unrecognized charecter"); }
 
 %%

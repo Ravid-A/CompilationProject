@@ -10,8 +10,8 @@ private int goo(args>> int: x): static{
         b <- 3+5;
     }
     
-    barr(x, 2, 3, 4.0);
-    return 3;
+    /*barr(x, 2, 3, 4.0);*/
+    return b[3];
 }
 
 public void barr(args>> int: i, j, k): static
