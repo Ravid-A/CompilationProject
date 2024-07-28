@@ -74,6 +74,7 @@ char* ftos(float f);
 void make_scope();
 void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static);
 void add_variable(Scope *scope, char *name, Type type);
+void add_variables(Scope *scope, node *variables, Type type);
 void add_arguments_to_scope(Scope *scope, node *args);
 void exit_scope();
 
@@ -284,6 +285,20 @@ void add_variable(Scope *scope, char *name, Type type)
     scope->symbols = new_symbol;
 }
 
+void add_variables(Scope *scope, node *variables, Type type)
+{
+    for(int i = 0; i < variables->children_count; i++)
+    {
+        node* variable = variables->children[i];
+        printf("Variable: %s %d\n", variable->token, type);
+        for(int j = 0; j < variable->children_count; j++)
+        {
+            char* name = strdup(variable->children[j]->token);
+            add_variable(scope, name, type);
+        }
+    }
+}
+
 void add_arguments_to_scope(Scope *scope, node *args)
 {
     for(int i = 0; i < args->children_count; i++)
@@ -442,6 +457,5 @@ void kill_symbol(Symbol *symbol)
 
 bool is_pointer(Symbol *symbol)
 {
-    printf("return type: %d\n", symbol->return_type);
     return symbol->return_type == TYPE_PTR_INT || symbol->return_type == TYPE_PTR_FLOAT || symbol->return_type == TYPE_PTR_DOUBLE || symbol->return_type == TYPE_PTR_CHAR;
 }
