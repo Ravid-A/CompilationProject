@@ -20,7 +20,7 @@ program: function
 %token <cval> LIT_CHAR
 %token <bval> LIT_BOOL
 
-%token REF DEREF
+%token REF
 %token SEMICOL COMMA STRLEN VAR
 %token ARGS PUBLIC PRIVATE STATIC RETURN 
 %token AND EQ GRTR GRTR_EQ LESS LESS_EQ NOT NOT_EQ OR 
@@ -135,7 +135,12 @@ argument_declaration: argument_declaration COMMA IDENTIFIER { add_child($$, mkno
 
 
 
-variable_assignment: IDENTIFIER ASS expression { if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) yyerror("Variable must be declared before the assignment statement"); $$ = mknode(ConcatString("ASS ", $1)); add_child($$, $3); };
+variable_assignment: IDENTIFIER ASS expression { 
+                                                    if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
+                                                        yyerror("Variable must be declared before the assignment statement"); 
+                                                    $$ = mknode(ConcatString("ASS ", $1)); 
+                                                    add_child($$, $3); 
+                                                };
                      | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS expression { 
                                                                                         if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
                                                                                             yyerror("Variable must be declared before the assignment statement");
@@ -167,12 +172,19 @@ variable_assignment: IDENTIFIER ASS expression { if(!check_symbol_recursive(curr
                                                                         add_child($$, ass); 
                                                                     }
                      | IDENTIFIER ASS { yyerror("missing value for assainment."); }
-                     | '*' %prec DEREF IDENTIFIER ASS { yyerror("missing value for assainment."); }
+                     | '*' %prec PTR IDENTIFIER ASS { yyerror("missing value for assainment."); }
                      | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS { yyerror("missing value for assainment."); }
                      | IDENTIFIER INDEX_OPEN INDEX_CLOSE ASS expression { yyerror("Index must be provided"); }
                      | ASS expression { yyerror("missing variable indetifier"); } ;
 
-variable_declaration: VAR variable_type COLON variable_id_declaration { $$ = mknode("VARDEC"); node* typenode = $2; add_nodes_to_node(typenode, $4); add_child($$, typenode); }
+variable_declaration: VAR variable_type COLON variable_id_declaration   { 
+                                                                            add_variables(current_scope, $4, $2->type);
+
+                                                                            $$ = mknode("VARDEC"); 
+                                                                            node* typenode = $2; 
+                                                                            add_nodes_to_node(typenode, $4); 
+                                                                            add_child($$, typenode); 
+                                                                        }
                       | VAR COLON variable_id_declaration { yyerror("Missing variable type"); }
                       | VAR variable_id_declaration { yyerror("Missing variable type");  }
 
@@ -182,18 +194,15 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                                                     yyerror("Symbol is already in use");
                                                                                                 }
 
-                                                                                                add_variable(current_scope, $3, $1->type);
-
                                                                                                 node* varnode = mknode($3); 
                                                                                                 add_child(varnode, $4); 
                                                                                                 add_child($$, varnode); 
                                                                                              }
-                      | IDENTIFIER variable_declaration_value { if(check_symbol(current_scope, $1, SYMBOL_VARIABLE))
+                      | IDENTIFIER variable_declaration_value { 
+                                                                if(check_symbol(current_scope, $1, SYMBOL_VARIABLE))
                                                                 {
                                                                     yyerror("Symbol is already in use");
                                                                 }
-
-                                                                add_variable(current_scope, $1, $$->type);
 
                                                                 $$ = mknode("ARGS"); 
                                                                 node* varnode = mknode($1); 
@@ -204,29 +213,95 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
 variable_declaration_value: ASS expression { $$ = $2; }
                             | {$$ = NULL; };
 
-expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); } |
-            expression '-' expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); } |
-            expression '*' expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); } |
-            expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); } |
-            expression MOD expression { $$ = mknode("%"); add_child($$, $1); add_child($$, $3); } |
+expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3);  } |
+            expression '-' expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
+            expression '*' expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
+            expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
+            expression MOD expression { $$ = mknode("%"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
             values { $$ = $1; } 
 
-values: LIT_BOOL { $$ = mknode($1? "True":"False"); } |
-        LIT_CHAR { $$ = mknode(ctos($1)); } |
-        LIT_INT { $$ = mknode(itos($1)); } |
-        LIT_DOUBLE { $$ = mknode(ftos($1)); } |
-        LIT_FLOAT { $$ = mknode(ftos($1)); } |
-        LIT_STRING { $$ = mknode($1); } |
-        NULL_TOKEN { $$ = mknode("NULL"); } |
-        STRLEN IDENTIFIER STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
-        STRLEN LIT_STRING STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); } |
-        IDENTIFIER { $$ = mknode($1); } |
+values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
+        LIT_CHAR { $$ = mknode(ctos($1)); $$->type = TYPE_CHAR; } |
+        LIT_INT { $$ = mknode(itos($1)); $$->type = TYPE_INT; } |
+        LIT_DOUBLE { $$ = mknode(ftos($1)); $$->type = TYPE_DOUBLE; } |
+        LIT_FLOAT { $$ = mknode(ftos($1)); $$->type = TYPE_FLOAT; } |
+        LIT_STRING { $$ = mknode($1); $$->type = TYPE_STRING; } |
+        NULL_TOKEN { $$ = mknode("NULL"); $$->type = TYPE_NULL; } |
+        STRLEN IDENTIFIER STRLEN    { 
+                                        if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
+                                            yyerror("Variable must be declared before the use statement");
+
+                                        Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
+                                        if(sym->return_type != TYPE_STRING)
+                                            yyerror("Strlen can only be used on a string variable.");
+
+                                        $$ = mknode("STRLEN"); 
+                                        add_child($$, mknode($2)); 
+                                        $$->type = TYPE_INT; 
+                                    } |
+        STRLEN LIT_STRING STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); $$->type = TYPE_INT; } |
+        IDENTIFIER  { 
+                        if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
+                            yyerror("Variable must be declared before the use statement");
+                            
+                        Symbol* sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
+
+                        $$ = mknode($1); 
+                        $$->type = sym->return_type;
+                    } |
         PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
-        REF expression { $$ = mknode("REF"); add_child($$, $2); } |
-        '*' expression %prec DEREF { $$ = mknode("DEREF"); add_child($$, $2); } |
-        '+' expression %prec UPLUS { $$ = $2; } |
-        '-' expression %prec UMINUS { $$ = mknode("-"); add_child($$, $2); } |
-        IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { $$ = mknode(ConcatString("INDEX ", $1)); add_child($$, $3); } |
+        REF IDENTIFIER  { 
+                            if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
+                            yyerror("Variable must be declared before the use statement");
+                            
+                            Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
+                            if(!is_referenceable(sym))
+                                yyerror("Variable is not referenceable");
+
+                            $$ = mknode("REF"); 
+                            add_child($$, mknode($2));
+                            $$->type = type_to_pointer(sym->return_type);
+                        } |
+        REF IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { 
+                                                            if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
+                                                                yyerror("Variable must be declared before the use statement");
+
+                                                            Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
+                                                            if(sym->return_type != TYPE_STRING)
+                                                                yyerror("Index in array can only be used on a string variable.");
+
+                                                            $$ = mknode("REF"); 
+                                                            add_child($$, mknode(ConcatString("INDEX ", $2))); 
+                                                            add_child($$, $4); 
+
+                                                            $$->type = TYPE_PTR_CHAR;
+                                                        } |
+        '*' IDENTIFIER %prec PTR    { 
+                                        if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
+                                            yyerror("Variable must be declared before the use statement");
+
+                                        Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
+                                        if(!is_pointer(sym))
+                                            yyerror("Deref is only available for pointers");
+
+                                        $$ = mknode("DEREF"); 
+                                        add_child($$, mknode($2)); 
+                                        $$->type = pointer_to_type(sym->return_type);
+                                    } |
+        '+' expression %prec UPLUS { $$ = $2;} |
+        '-' expression %prec UMINUS { $$ = mknode("-"); add_child($$, $2); $$->type = $2->type; } |
+        IDENTIFIER INDEX_OPEN expression INDEX_CLOSE    { 
+                                                            if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
+                                                                yyerror("Variable must be declared before the use statement");
+
+                                                            Symbol* sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
+                                                            if(sym->return_type != TYPE_STRING)
+                                                                yyerror("Index in array can only be used on a string variable.");
+
+                                                            $$ = mknode(ConcatString("INDEX ", $1)); 
+                                                            add_child($$, $3); 
+                                                            $$->type = TYPE_CHAR;
+                                                        } |
         function_call { $$ = $1; } ;
 
 function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE { 
@@ -241,6 +316,8 @@ function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE {
                                                                     $$ = mknode("FUNC_CALL"); 
                                                                     add_child($$, mknode($1)); 
                                                                     add_child($$, $3); 
+
+                                                                    $$->type = sym->return_type;
                                                                 }
 
 call_arguments: call_arguments COMMA expression { add_child($$, $3); }

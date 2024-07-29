@@ -18,6 +18,7 @@ typedef enum Type
     TYPE_PTR_FLOAT,
     TYPE_PTR_DOUBLE,
     TYPE_PTR_CHAR,
+    TYPE_NULL,
     TYPE_VOID
 } Type;
 
@@ -88,6 +89,11 @@ void kill_scope(Scope *scope);
 void kill_symbol(Symbol *symbol);
 
 bool is_pointer(Symbol *symbol);
+bool is_referenceable(Symbol *symbol);
+Type type_to_pointer(Type type);
+Type pointer_to_type(Type type);
+
+Type get_expression_type(node *e1, node *e2);
 
 int yycolumnno = 0;
 
@@ -290,12 +296,8 @@ void add_variables(Scope *scope, node *variables, Type type)
     for(int i = 0; i < variables->children_count; i++)
     {
         node* variable = variables->children[i];
-        printf("Variable: %s %d\n", variable->token, type);
-        for(int j = 0; j < variable->children_count; j++)
-        {
-            char* name = strdup(variable->children[j]->token);
-            add_variable(scope, name, type);
-        }
+        char* name = strdup(variable->token);
+        add_variable(scope, name, type);
     }
 }
 
@@ -458,4 +460,68 @@ void kill_symbol(Symbol *symbol)
 bool is_pointer(Symbol *symbol)
 {
     return symbol->return_type == TYPE_PTR_INT || symbol->return_type == TYPE_PTR_FLOAT || symbol->return_type == TYPE_PTR_DOUBLE || symbol->return_type == TYPE_PTR_CHAR;
+}
+
+bool is_referenceable(Symbol *symbol)
+{
+    return symbol->return_type == TYPE_INT || symbol->return_type == TYPE_FLOAT || symbol->return_type == TYPE_DOUBLE || symbol->return_type == TYPE_CHAR;
+}
+
+Type type_to_pointer(Type type)
+{
+    switch(type)
+    {
+        case TYPE_INT:
+            return TYPE_PTR_INT;
+        case TYPE_FLOAT:
+            return TYPE_PTR_FLOAT;
+        case TYPE_DOUBLE:
+            return TYPE_PTR_DOUBLE;
+        case TYPE_CHAR:
+            return TYPE_PTR_CHAR;
+        default:
+            return TYPE_NULL;
+    }
+}
+
+Type pointer_to_type(Type type)
+{
+    switch(type)
+    {
+        case TYPE_PTR_INT:
+            return TYPE_INT;
+        case TYPE_PTR_FLOAT:
+            return TYPE_FLOAT;
+        case TYPE_PTR_DOUBLE:
+            return TYPE_DOUBLE;
+        case TYPE_PTR_CHAR:
+            return TYPE_CHAR;
+        default:
+            return TYPE_NULL;
+    }
+}
+
+Type get_expression_type(node* e1, node* e2)
+{
+    if(e1->type != TYPE_FLOAT && e1->type != TYPE_INT && e1->type != TYPE_DOUBLE)
+    {
+        yyerror("Invalid type for expression");
+    }
+
+    if(e2->type != TYPE_FLOAT && e2->type != TYPE_INT && e2->type != TYPE_DOUBLE)
+    {
+        yyerror("Invalid type for expression");
+    }
+
+    if(e1->type == TYPE_FLOAT || e2->type == TYPE_FLOAT)
+    {
+        return TYPE_FLOAT;
+    }
+
+    if(e1->type == TYPE_DOUBLE || e2->type == TYPE_DOUBLE)
+    {
+        return TYPE_DOUBLE;
+    }
+
+    return TYPE_INT;
 }
