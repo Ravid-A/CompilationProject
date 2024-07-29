@@ -84,7 +84,7 @@ bool check_symbol_recursive(Scope *scope, char *name, SymbolType type);
 Symbol *get_symbol(Scope *scope, char *name, SymbolType type);
 bool check_main_exists(Scope *scope);
 Type get_return_type(Scope *scope);
-bool check_return_required(Scope *scope);
+Type check_return_required(Scope *scope);
 void kill_scope(Scope *scope);
 void kill_symbol(Symbol *symbol);
 
@@ -425,7 +425,7 @@ Type get_return_type(Scope *scope)
     return get_return_type(scope->parent);
 }
 
-bool check_return_required(Scope *scope)
+Type check_return_required(Scope *scope)
 {
     Scope *current = scope;
     if(scope->parent)
@@ -433,7 +433,7 @@ bool check_return_required(Scope *scope)
         current = scope->parent;
     } 
 
-    return get_return_type(current) != TYPE_VOID;
+    return get_return_type(current);
 }
 
 void kill_scope(Scope *scope)

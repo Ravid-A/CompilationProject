@@ -56,7 +56,7 @@ program: function
 
 %%
 
-start: s { if(!check_main_exists(current_scope)) yyerror("There is no main function");  printf("ACCEPT"); print_tree_to_file($1); kill_scope(current_scope); }
+start: s { if(!check_main_exists(current_scope)) yyerror("There is no main function");  printf("ACCEPT\n"); print_tree_to_file($1); kill_scope(current_scope); }
 
 s: s function {
         add_child($$, $2);
@@ -138,6 +138,11 @@ argument_declaration: argument_declaration COMMA IDENTIFIER { add_child($$, mkno
 variable_assignment: IDENTIFIER ASS expression { 
                                                     if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
                                                         yyerror("Variable must be declared before the assignment statement"); 
+
+                                                    Symbol *sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
+                                                    if(sym->return_type != $3->type)
+                                                        yyerror("The value in the assignment must be in the type of the variable");
+
                                                     $$ = mknode(ConcatString("ASS ", $1)); 
                                                     add_child($$, $3); 
                                                 };
@@ -148,7 +153,12 @@ variable_assignment: IDENTIFIER ASS expression {
                                                                                         Symbol *sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
                                                                                         if(sym->return_type != TYPE_STRING)
                                                                                             yyerror("Index in array can only be used on a string variable.");
-                                                                                            
+                                                                                        
+                                                                                        if($3->type != TYPE_INT)
+                                                                                            yyerror("Index must be an integer");
+
+                                                                                        if($6->type != TYPE_CHAR)
+                                                                                            yyerror("The value in the assignment must be in the type of the variable");
 
                                                                                         $$ = mknode(ConcatString("INDEX ", $1)); 
                                                                                         add_child($$, $3); 
@@ -270,6 +280,9 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                                                             if(sym->return_type != TYPE_STRING)
                                                                 yyerror("Index in array can only be used on a string variable.");
 
+                                                            if($4->type != TYPE_INT)
+                                                                yyerror("Index must be an integer");
+
                                                             $$ = mknode("REF"); 
                                                             add_child($$, mknode(ConcatString("INDEX ", $2))); 
                                                             add_child($$, $4); 
@@ -297,6 +310,9 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                                                             Symbol* sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
                                                             if(sym->return_type != TYPE_STRING)
                                                                 yyerror("Index in array can only be used on a string variable.");
+
+                                                            if($3->type != TYPE_INT)
+                                                                yyerror("Index must be an integer");
 
                                                             $$ = mknode(ConcatString("INDEX ", $1)); 
                                                             add_child($$, $3); 
@@ -336,7 +352,8 @@ function_body: declarations statements return_statement {
     add_child($$, $2);
 }
 | declarations statements { 
-    if(check_return_required(current_scope)) yyerror("Return value is required for this function"); 
+    Type return_type = check_return_required(current_scope);
+    if(return_type != TYPE_VOID)yyerror("Return value is required for this function"); 
     $$ = mknode("BODY"); 
     add_nodes_to_node($$, $1); 
     add_nodes_to_node($$, $2);
@@ -347,12 +364,14 @@ function_body: declarations statements return_statement {
     add_child($$, $2);
 }
 | declarations { 
-    if(check_return_required(current_scope)) yyerror("Return value is required for this function");  
+    Type return_type = check_return_required(current_scope);
+    if(return_type != TYPE_VOID) yyerror("Return value is required for this function");  
     $$ = mknode("BODY"); 
     add_nodes_to_node($$, $1);
 }
 | statements { 
-    if(check_return_required(current_scope)) yyerror("Return value is required for this function");  
+    Type return_type = check_return_required(current_scope);
+    if(return_type != TYPE_VOID) yyerror("Return value is required for this function");  
     $$ = mknode("BODY"); 
     add_nodes_to_node($$, $1);
 }
@@ -367,7 +386,8 @@ function_body: declarations statements return_statement {
     yyerror("Declarations must be before return statement");
 }
 | { 
-    if(check_return_required(current_scope)) yyerror("Return value is required for this function");  
+    Type return_type = check_return_required(current_scope);
+    if(return_type != TYPE_VOID) yyerror("Return value is required for this function");  
     $$ = mknode("BODY"); 
     add_child($$, mknode("EMPTY"));
 }
@@ -445,11 +465,12 @@ possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      function_call SEMICOL { $$ = $1; };
 
 return_statement: RETURN expression SEMICOL { 
-                                                if(!check_return_required(current_scope)) 
+                                                Type return_type = check_return_required(current_scope);
+                                                if(return_type == TYPE_VOID)
                                                     yyerror("Return value is not allowed for this function"); 
 
-                                                // if(get_return_type(current_scope) != $2->type) 
-                                                //     yyerror("Return type does not match the function return type");
+                                                if(return_type != $2->type) 
+                                                    yyerror("Return type does not match the function return type");
 
                                                 $$ = mknode("RETURN"); 
                                                 add_child($$, $2); 

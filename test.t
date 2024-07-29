@@ -6,9 +6,13 @@ public void foo2(args>> int: x, y, z; float: f){
 
 public int goo(args>> int: x): static{ 
     var int : b;
+    var string: c <- "hello";
     private void foo(args>> int: x, y, z; float: f){
         b <- 3+5;
     }
+
+    foo(1>2, 3, 4, 5.0);
+    c[1-b] <- 'a';
     
     return 0;
 }
