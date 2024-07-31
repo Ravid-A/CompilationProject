@@ -1,7 +1,9 @@
 public void foo2(args>> int: x, y, z; float: f){
-    var int*: b <- 3+5, c <- 4, d;
+    var int*: b;
     var float: e;
     var int: g;
+
+    x <- g;
 }
 
 public int goo(args>> int: x): static{ 
@@ -12,7 +14,7 @@ public int goo(args>> int: x): static{
     }
 
     foo(1>2, 3, 4, 5.0);
-    c[1-b] <- 'a';
+    c[1] <- 'a';
     
     return 0;
 }

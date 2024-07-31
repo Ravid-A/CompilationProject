@@ -39,14 +39,13 @@ program: function
 %left LESS LESS_EQ GRTR GRTR_EQ
 %left '+' '-' '*'
 %left DIV
-%left MOD
 %right NOT
 %right REF
 %right INDEX_OPEN
 
 %type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block
-%type <node> return_statement variable_declaration possible_statements block binary_expression loop_statement argument_declaration
+%type <node> return_statement variable_declaration possible_statements block loop_statement argument_declaration
 %type <node> variable_declaration_value variable_id_declaration code_block_statements code_block_statement code_block_declarations variable_type
 
 %nonassoc LOWER_THAN_ELSE
@@ -141,7 +140,16 @@ variable_assignment: IDENTIFIER ASS expression {
 
                                                     Symbol *sym = get_symbol(current_scope, $1, SYMBOL_VARIABLE);
                                                     if(sym->return_type != $3->type)
-                                                        yyerror("The value in the assignment must be in the type of the variable");
+                                                    {
+                                                        if(is_pointer(sym))
+                                                        {
+                                                            if($3->type != TYPE_NULL)
+                                                                yyerror("The value in the assignment must be in the type of the variable");
+                                                        } 
+                                                        else
+                                                            yyerror("The value in the assignment must be in the type of the variable");
+                                                    }
+                                                    
 
                                                     $$ = mknode(ConcatString("ASS ", $1)); 
                                                     add_child($$, $3); 
@@ -174,6 +182,8 @@ variable_assignment: IDENTIFIER ASS expression {
                                                                         if(!is_pointer(sym))
                                                                             yyerror("Deref is only available for pointers");
 
+                                                                        if(pointer_to_type(sym->return_type) != $4->type)
+                                                                            yyerror("The value in the assignment must be in the type of the dereferenced variable");
 
                                                                         $$ = mknode("DEREF"); 
                                                                         add_child($$, mknode($2)); 
@@ -204,6 +214,8 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                                                     yyerror("Symbol is already in use");
                                                                                                 }
 
+                                                                                                
+
                                                                                                 node* varnode = mknode($3); 
                                                                                                 add_child(varnode, $4); 
                                                                                                 add_child($$, varnode); 
@@ -227,7 +239,15 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
             expression '-' expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
             expression '*' expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
             expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
-            expression MOD expression { $$ = mknode("%"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
+            expression EQ expression { if($1->type != $3->type) yyerror("Both expressions must be from the same type"); $$ = mknode("=="); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL; } |
+            expression NOT_EQ expression { $$ = mknode("!="); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression GRTR expression { $$ = mknode(">"); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression GRTR_EQ expression { $$ = mknode(">="); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression LESS expression { $$ = mknode("<"); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression LESS_EQ expression { $$ = mknode("<="); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression AND expression { if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) yyerror("AND operator must have boolean expressions"); $$ = mknode("&&"); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression OR expression { if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) yyerror("OR operator must have boolean expressions"); $$ = mknode("||"); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            NOT expression { if($2->type != TYPE_BOOL) yyerror("NOT operator can only be used on boolean expressions"); $$ = mknode("!"); add_child($$, $2); $$->type = TYPE_BOOL; } |
             values { $$ = $1; } 
 
 values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
@@ -423,27 +443,54 @@ code_block_statement: BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; }
 code_block_declarations: variable_declarations { $$ = $1; }
                          | function { yyerror("Function declaration cannot be inside a code block"); }
 
-loop_statement: WHILE PAREN_OPEN binary_expression PAREN_CLOSE statement_block { $$ = mknode("WHILE"); add_child($$, $3); add_child($$, $5); }
-               | DO statement_block WHILE PAREN_OPEN binary_expression PAREN_CLOSE SEMICOL { $$ = mknode("DO"); add_child($$, $2); add_child($$, $5); }
-               | FOR PAREN_OPEN variable_declaration SEMICOL binary_expression SEMICOL variable_assignment PAREN_CLOSE statement_block{ $$ = mknode("FOR"); add_child($$, $3); add_child($$, $5); add_child($$, $7); add_child($$, $9); }
+loop_statement: WHILE PAREN_OPEN expression PAREN_CLOSE statement_block     { 
+                                                                                if($3->type != TYPE_BOOL)
+                                                                                    yyerror("While statement must have a boolean expression");
+    
+                                                                                $$ = mknode("WHILE"); 
+                                                                                add_child($$, $3); 
+                                                                                add_child($$, $5); 
+                                                                            }
+               | DO statement_block WHILE PAREN_OPEN expression PAREN_CLOSE SEMICOL     { 
+                                                                                            if($5->type != TYPE_BOOL)
+                                                                                                yyerror("Do-While statement must have a boolean expression");
 
-if_statement: IF PAREN_OPEN binary_expression PAREN_CLOSE statement_block %prec LOWER_THAN_ELSE { $$ = mknode("IF"); add_child($$, $3); add_child($$, $5); }
-        | IF PAREN_OPEN binary_expression PAREN_CLOSE statement_block ELSE statement_block { $$ = mknode("IF_ELSE"); add_child($$, $3); add_child($$, $5); add_child($$, $7); }
+                                                                                            $$ = mknode("DO"); 
+                                                                                            add_child($$, $2); 
+                                                                                            add_child($$, $5); 
+                                                                                        }
+               | FOR PAREN_OPEN variable_declaration SEMICOL expression SEMICOL variable_assignment PAREN_CLOSE statement_block { 
+                                                                                                                                    if($5->type != TYPE_BOOL)
+                                                                                                                                        yyerror("For statement must have a boolean expression");
+                                                                                                                                        
+                                                                                                                                    $$ = mknode("FOR"); 
+                                                                                                                                    add_child($$, $3); 
+                                                                                                                                    add_child($$, $5); 
+                                                                                                                                    add_child($$, $7); 
+                                                                                                                                    add_child($$, $9); 
+                                                                                                                                }
+
+if_statement: IF PAREN_OPEN expression PAREN_CLOSE statement_block %prec LOWER_THAN_ELSE    { 
+                                                                                                if($3->type != TYPE_BOOL)
+                                                                                                    yyerror("If statement must have a boolean expression"); 
+                                                                                                
+                                                                                                $$ = mknode("IF"); 
+                                                                                                add_child($$, $3); 
+                                                                                                add_child($$, $5); 
+                                                                                            }
+        | IF PAREN_OPEN expression PAREN_CLOSE statement_block ELSE statement_block     { 
+                                                                                            if($3->type != TYPE_BOOL)
+                                                                                                yyerror("If statement must have a boolean expression");
+
+                                                                                            $$ = mknode("IF_ELSE"); 
+                                                                                            add_child($$, $3); 
+                                                                                            add_child($$, $5); 
+                                                                                            add_child($$, $7); 
+                                                                                        };
 
 statement_block: BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; }
                 | possible_statements { $$ = $1; } 
                 | return_statement { $$ = $1; } ;
-
-binary_expression: binary_expression EQ binary_expression { $$ = mknode("=="); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression GRTR binary_expression { $$ = mknode(">"); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression GRTR_EQ binary_expression { $$ = mknode(">="); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression LESS binary_expression { $$ = mknode("<"); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression LESS_EQ binary_expression { $$ = mknode("<="); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression NOT_EQ binary_expression { $$ = mknode("!="); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression AND binary_expression { $$ = mknode("&&"); add_child($$, $1); add_child($$, $3); }
-                 | binary_expression OR binary_expression { $$ = mknode("||"); add_child($$, $1); add_child($$, $3); }
-                 | NOT expression { $$ = mknode("NOT"); add_child($$, $2); }
-                 | expression { $$ = $1; };
 
 statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
             statements possible_statements { add_child($$, $2); } ;

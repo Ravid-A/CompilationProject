@@ -52,7 +52,6 @@ void { yycolumnno += yyleng; return VOID; }
 "||" { yycolumnno += yyleng; return OR; }
 "&" { yycolumnno += yyleng; return REF; }
 "/" { yycolumnno += yyleng; return DIV; }
-"%" { yycolumnno += yyleng; return MOD; }
 "*" { yycolumnno += yyleng; return yytext[0]; }
 "+" { yycolumnno += yyleng; return yytext[0]; }
 "-" { yycolumnno += yyleng; return yytext[0]; }
