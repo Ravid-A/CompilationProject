@@ -44,7 +44,7 @@ program: function
 %right INDEX_OPEN
 
 %type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
-%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block string_declaration
+%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block string_declaration function_data
 %type <node> return_statement variable_declaration possible_statements block loop_statement argument_declaration for_init string_id_declaration string_declaration_value
 %type <node> variable_declaration_value variable_id_declaration code_block_statements code_block_statement code_block_declarations variable_type possible_variable_declaration
 
@@ -65,33 +65,43 @@ s: s function {
         add_child($$, $1);
    }
 
-function:   privacy_of_function return_type IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static  {
-                                                            if(check_symbol(current_scope, $3, SYMBOL_FUNCTION)) {
+function:   function_data IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static  {
+                                                            if(check_symbol(current_scope, $2, SYMBOL_FUNCTION)) {
                                                                 yyerror("Function already exists");
                                                             }
 
-                                                            add_function(current_scope, $3, $2->type, $5, $1, $7);
+                                                            node* privacynode = $1->children[0];
+                                                            node* returntypenode = $1->children[1];
+
+                                                            add_function(current_scope, $2, returntypenode->type, $4, privacynode, $6);
                                                             make_scope();
-                                                            add_arguments_to_scope(current_scope, $5);
+                                                            add_arguments_to_scope(current_scope, $4);
                                                         } 
             BLOCK_OPEN function_body BLOCK_CLOSE { 
+                                                    node* privacynode = $1->children[0];
+                                                    node* returntypenode = $1->children[1];
+
                                                     $$ = mknode("FUNC");
-                                                    add_child($$, mknode($3));
-                                                    add_child($$, $7);
-                                                    add_child($$, $1);
-                                                    add_child($$, $5);
-                                                    add_child($$, $2);
-                                                    add_child($$, $10);
+                                                    add_child($$, mknode($2));
+                                                    add_child($$, $6);
+                                                    add_child($$, privacynode);
+                                                    add_child($$, $4);
+                                                    add_child($$, returntypenode);
+                                                    add_child($$, $9);
 
                                                     exit_scope();
                                                 };
 
-privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
-                    | PRIVATE { $$ = mknode("PRIVATE"); }
-                    | { yyerror("Privacy of a function must be specified"); }
+function_data: privacy_of_function return_type { $$ = mknode("FUNC_DATA"); add_child($$, $1); add_child($$, $2); }
+               | privacy_of_function { yyerror("Missing return type for function"); };
+               | return_type { yyerror("Missing privacy of function"); };
 
-is_static: COLON STATIC { $$ = mknode("STATIC"); }
-               | { $$ = mknode("NON_STATIC"); }
+privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
+                    | PRIVATE { $$ = mknode("PRIVATE"); };
+
+is_static:  COLON STATIC { $$ = mknode("STATIC"); }
+            | COLON { yyerror("Missing static keyword"); }
+            | { $$ = mknode("NON_STATIC"); }
 
 return_type: variable_type  { 
                                 $$ = mknode("RET");
@@ -103,11 +113,7 @@ return_type: variable_type  {
                     add_child($$, mknode("VOID")); 
                     $$->type = TYPE_VOID;
                 }
-            | STRING { 
-                        $$ = mknode("RETURN");
-                        add_child($$, mknode("STRING")); 
-                        $$->type = TYPE_STRING;
-                    };
+            | STRING { yyerror("String is not a valid return type for a function"); }
 
 variable_type: INT { $$ = mknode("INT"); $$->type = TYPE_INT; } |
                CHAR { $$ = mknode("CHAR"); $$->type = TYPE_CHAR; } |
@@ -194,9 +200,9 @@ variable_assignment: IDENTIFIER ASS expression {
                                                                         add_child(ass, $4); 
                                                                         add_child($$, ass); 
                                                                     }
-                     | IDENTIFIER ASS { yyerror("missing value for assainment."); }
-                     | '*' %prec PTR IDENTIFIER ASS { yyerror("missing value for assainment."); }
-                     | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS { yyerror("missing value for assainment."); }
+                     | IDENTIFIER ASS { yyerror("missing value for assignment."); }
+                     | '*' %prec PTR IDENTIFIER ASS { yyerror("missing value for assignment."); }
+                     | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS { yyerror("missing value for assignment."); }
                      | IDENTIFIER INDEX_OPEN INDEX_CLOSE ASS expression { yyerror("Index must be provided"); }
                      | ASS expression { yyerror("missing variable indetifier"); } ;
 
@@ -237,7 +243,8 @@ string_id_declaration: string_id_declaration COMMA IDENTIFIER INDEX_OPEN LIT_INT
                                                                                                 add_child($$, varnode);
                                                                                             };
 
-string_declaration_value: ASS LIT_STRING { $$ = mknode($2); }
+string_declaration_value:  ASS LIT_STRING { $$ = mknode($2); }
+                          | ASS expression { yyerror("In declaration of string, the varaible can only be assigned a litral string"); }
                           | {   $$ = NULL; }
 
 variable_declaration: VAR variable_type COLON variable_id_declaration   { 
@@ -444,17 +451,13 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
 
                                                             $$->type = TYPE_PTR_CHAR;
                                                         } |
-        '*' IDENTIFIER %prec PTR    { 
-                                        if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
-                                            yyerror("Variable must be declared before the use statement");
-
-                                        Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
-                                        if(!is_pointer(sym))
+        '*' expression %prec PTR    { 
+                                        if(!is_pointer_type($2->type))
                                             yyerror("Deref is only available for pointers");
 
                                         $$ = mknode("DEREF"); 
-                                        add_child($$, mknode($2)); 
-                                        $$->type = pointer_to_type(sym->return_type);
+                                        add_child($$, $2); 
+                                        $$->type = pointer_to_type($2->type);
                                     } |
         '+' expression %prec UPLUS { $$ = $2;} |
         '-' expression %prec UMINUS { $$ = mknode("-"); add_child($$, $2); $$->type = $2->type; } |
@@ -481,8 +484,15 @@ function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE {
 
                                                                     Symbol* sym = get_symbol(current_scope, $1, SYMBOL_FUNCTION);
 
-                                                                    if(sym->args_count != $3->children_count)
-                                                                        yyerror("Function arguments count does not match the function declaration");
+                                                                    Symbol* current_function = get_current_function(current_scope);
+
+                                                                    if(current_function->is_static && !sym->is_static)
+                                                                        yyerror("Cannot call a non-static function from a static function");
+
+                                                                    if(!sym->is_public && current_function->is_public && !is_function_in_scope(current_scope->parent, sym))
+                                                                        yyerror("Cannot call a private function from a public function from a different scope");
+
+                                                                    check_call_arguments(sym, $3);
 
                                                                     $$ = mknode("FUNC_CALL"); 
                                                                     add_child($$, mknode($1)); 
@@ -493,7 +503,7 @@ function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE {
 
 call_arguments: call_arguments COMMA expression { add_child($$, $3); }
                | expression { $$ = mknode("ARGS"); add_child($$, $1); }
-               | { $$ = mknode("ARGS"); add_child($$, mknode("NONE")); };
+               | { $$ = mknode("ARGS NONE"); };
 
 function_body: declarations statements return_statement { 
     $$ = mknode("BODY"); 
@@ -650,7 +660,8 @@ functions_declarations: function { $$ = mknode("FUNC_DECS"); add_child($$, $1); 
 possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      loop_statement { $$ = $1; } |
                      if_statement { $$ = $1; } |
-                     function_call SEMICOL { $$ = $1; };
+                     function_call SEMICOL  { $$ = $1; } |
+                     BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; };
 
 return_statement: RETURN expression SEMICOL { 
                                                 Type return_type = check_return_required(current_scope);

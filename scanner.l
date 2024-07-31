@@ -10,11 +10,11 @@ int_hex 0[xX]{DIGIT_HEX}+
 int (^{SIGN})?({int_hex}|{int_dec})
 ex_notation (e|E){int_dec}
 real (^{SIGN})?({int_dec}\.{DIGIT}+|{int_dec}?\.{DIGIT}+){ex_notation}?|{int_dec}{ex_notation}
-double {real}
-float {real}f
+double {real}|{int}
+float {double}[fF]
 string \"[^\n"]*\"
 identifier {LETTER}({CHARACHTER}|_)*
-newline \n|\r\n|\r|\r
+newline \n|\r\n|\r
 
 %%
 
@@ -73,7 +73,16 @@ true|false { yycolumnno += yyleng; yylval.bval = strcmp(yytext, "true") == 0; re
 "[" { yycolumnno += yyleng; return INDEX_OPEN; }
 "]" { yycolumnno += yyleng; return INDEX_CLOSE; }
 "<-" { yycolumnno += yyleng; return ASS; }
-\/\*(.|{newline})*\*\/ { yycolumnno += yyleng; /* ignore comments */ }
+\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/  { 
+    for(int i = 0; i < yyleng; i++) {
+        if(yytext[i] == '\n') {
+            yylineno++;
+            yycolumnno = 1;
+        } else {
+            yycolumnno++;
+        }
+    }
+}
 [ \t\s] { yycolumnno += yyleng; /* ignore whitespace */ }
 {newline} { yycolumnno = 0; yylineno++; }
 . { yyerror("Unrecognized charecter"); }

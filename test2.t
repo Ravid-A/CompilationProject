@@ -1,17 +1,22 @@
-public int foo(args>> int: x, y, z; float: f) {
-    var int: b;
+private void goo(): static { 
+}
 
-    if (x > y) {
-        x <- x + y;
-        goo(x);
-    }
-    else {
-        y <- x + y + z;
-        z <- y * 2;
-        f <- z;
+/* scope 0: */
+public void main(): static
+{
+    private void foo1()
+    {
     }
 
-    b <- x + y + z;
+    public void goo2()
+    {
+        
+        public void goo3()
+        {
+            main();
+        }
+        foo1();
+    }
 
-    return b;
+    goo();
 }

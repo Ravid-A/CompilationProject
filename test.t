@@ -1,11 +1,6 @@
 public int foo2(args>> int: x, y, z; float: f){
-    var int*: b;
+    var int: b;
     var int*: c;
-
-    if(b!=c)
-    {
-        return x;
-    }
 
     return y;
 }
@@ -43,3 +38,5 @@ public void main(): static
         return true;
     }
 }
+
+public void main(): static

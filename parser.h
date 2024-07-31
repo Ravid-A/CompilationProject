@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 int yylex();
-void yyerror(const char* s);
+void yyerror(const char *s);
 
 typedef enum Type 
 {
@@ -91,6 +91,9 @@ Type check_return_required(Scope *scope);
 void kill_scope(Scope *scope);
 void kill_symbol(Symbol *symbol);
 
+Symbol *get_function(Scope *scope);
+Symbol *get_current_function(Scope *scope);
+
 bool is_pointer(Symbol *symbol);
 bool is_pointer_type(Type type);
 bool is_referenceable(Symbol *symbol);
@@ -98,6 +101,11 @@ Type type_to_pointer(Type type);
 Type pointer_to_type(Type type);
 
 Type get_expression_type(node *e1, node *e2);
+
+void check_call_arguments(Symbol *function, node *args);
+bool is_function_in_scope(Scope *scope, Symbol *symbol);
+bool is_function_exists_in_scope(Scope *scope, Symbol *symbol);
+bool is_function_exists_in_scope_rec(Scope *scope, Symbol *symbol);
 
 int yycolumnno = 0;
 
@@ -248,6 +256,11 @@ void make_scope()
 
 void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static)
 {
+    if(strcmp(name, "main") == 0 && scope->parent != NULL)
+    {
+        yyerror("Main function cannot be declared outside of the global scope");
+    }
+
     if(check_symbol(scope, name, SYMBOL_FUNCTION))
     {
         yyerror("Symbol already exists");
@@ -287,6 +300,11 @@ void add_function(Scope *scope, char *name, Type return_type, node *args, node* 
 
 void add_variable(Scope *scope, char *name, Type type)
 {
+    if(strcmp(name, "main") == 0)
+    {
+        yyerror("Variable name cannot be main");
+    }
+
     Symbol *new_symbol = (Symbol*)malloc(sizeof(Symbol));
     new_symbol->name = name;
     new_symbol->type = SYMBOL_VARIABLE;
@@ -352,20 +370,6 @@ bool check_symbol(Scope *scope, char *name, SymbolType type)
 {
     if(!scope)
         return false;
-
-    // only 1 main function in the program and in the global scope
-    if(strcmp(name, "main") == 0)
-    {
-        if(type == SYMBOL_FUNCTION && scope->parent)
-        {
-            yyerror("Main function must be in the global scope");
-        }
-
-        if(type == SYMBOL_VARIABLE)
-        {
-            yyerror("main is a reserved keyword");
-        }
-    }
 
 
     Symbol *current = scope->symbols;
@@ -463,6 +467,31 @@ Type check_return_required(Scope *scope)
     return get_return_type(current);
 }
 
+Symbol *get_function(Scope *scope)
+{
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        if(current->type == SYMBOL_FUNCTION)
+        {
+            return current;
+        }
+        current = current->next;
+    }
+    return get_function(scope->parent);
+}
+
+Symbol *get_current_function(Scope *scope)
+{
+    Scope *current = scope;
+    if(scope->parent)
+    {
+        current = scope->parent;
+    } 
+
+    return get_function(current);
+}
+
 void kill_scope(Scope *scope)
 {
     //dont touch the parent
@@ -512,8 +541,10 @@ Type type_to_pointer(Type type)
         case TYPE_CHAR:
             return TYPE_PTR_CHAR;
         default:
-            return TYPE_NULL;
+            yyerror("Invalid type for pointer");
     }
+    // should never reach here
+    return TYPE_NULL;
 }
 
 Type pointer_to_type(Type type)
@@ -529,8 +560,10 @@ Type pointer_to_type(Type type)
         case TYPE_PTR_CHAR:
             return TYPE_CHAR;
         default:
-            return TYPE_NULL;
+            yyerror("Invalid pointer type");
     }
+    // should never reach here
+    return TYPE_NULL;
 }
 
 Type get_expression_type(node* e1, node* e2)
@@ -556,4 +589,60 @@ Type get_expression_type(node* e1, node* e2)
     }
 
     return TYPE_INT;
+}
+
+void check_call_arguments(Symbol *function, node *args)
+{
+    if(function->args_count != args->children_count)
+    {
+        yyerror("Function arguments count does not match the function declaration");
+    }
+
+    for(int i = 0; i < args->children_count; i++)
+    {
+        node *arg = args->children[i];
+        if(arg->type != function->args[i])
+        {
+            yyerror("Function argument type does not match the function declaration");
+        }
+    }
+}
+
+bool is_function_exists_in_scope(Scope *scope, Symbol *symbol)
+{
+    //return is_function_in_scope(scope, symbol) || is_function_in_scope(scope->parent, symbol);
+    bool exists = is_function_in_scope(scope, symbol);
+    if(exists)
+    {
+        return true;
+    }
+
+    return is_function_exists_in_scope(scope->parent, symbol);
+}
+
+bool is_function_exists_in_scope_rec(Scope *scope, Symbol *symbol)
+{
+    bool exists = is_function_in_scope(scope, symbol);
+    if(exists)
+    {
+        return true;
+    }
+
+    return is_function_exists_in_scope(scope->parent, symbol);
+}
+
+bool is_function_in_scope(Scope *scope, Symbol *symbol)
+{
+    if(!scope)
+        return false;
+    Symbol *current = scope->symbols;
+    while(current)
+    {
+        if(current->type == SYMBOL_FUNCTION && strcmp(current->name, symbol->name) == 0)
+        {
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
 }
