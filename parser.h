@@ -92,6 +92,7 @@ void kill_scope(Scope *scope);
 void kill_symbol(Symbol *symbol);
 
 bool is_pointer(Symbol *symbol);
+bool is_pointer_type(Type type);
 bool is_referenceable(Symbol *symbol);
 Type type_to_pointer(Type type);
 Type pointer_to_type(Type type);
@@ -486,6 +487,11 @@ void kill_symbol(Symbol *symbol)
 bool is_pointer(Symbol *symbol)
 {
     return symbol->return_type == TYPE_PTR_INT || symbol->return_type == TYPE_PTR_FLOAT || symbol->return_type == TYPE_PTR_DOUBLE || symbol->return_type == TYPE_PTR_CHAR;
+}
+
+bool is_pointer_type(Type type)
+{
+    return type == TYPE_PTR_INT || type == TYPE_PTR_FLOAT || type == TYPE_PTR_DOUBLE || type == TYPE_PTR_CHAR;
 }
 
 bool is_referenceable(Symbol *symbol)

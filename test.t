@@ -1,9 +1,13 @@
-public void foo2(args>> int: x, y, z; float: f){
+public int foo2(args>> int: x, y, z; float: f){
     var int*: b;
-    var float: e;
-    var int: g;
+    var int*: c;
 
-    x <- g;
+    if(b!=c)
+    {
+        return x;
+    }
+
+    return y;
 }
 
 public int goo(args>> int: x): static{ 
@@ -16,7 +20,7 @@ public int goo(args>> int: x): static{
     for(b <- 0; b < 5; b <- b+1){
         b <- b+1;
     }
-    
+
     return 0;
 }
 

@@ -284,7 +284,7 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
             expression EQ expression    { 
                                             if($1->type != $3->type) 
                                                 yyerror("Both expressions must be from the same type"); 
-                                            if($1->type != TYPE_CHAR && $1->type != TYPE_BOOL && $1->type != TYPE_INT && $1->type != TYPE_FLOAT && $1->type != TYPE_DOUBLE)
+                                            if($1->type != TYPE_CHAR && $1->type != TYPE_BOOL && $1->type != TYPE_INT && $1->type != TYPE_FLOAT && $1->type != TYPE_DOUBLE && !is_pointer_type($1->type))
                                                     yyerror("Expressions must be of a valid type (int, float, double, char, bool)");
                                             $$ = mknode("=="); 
                                             add_child($$, $1); 
@@ -294,7 +294,7 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
             expression NOT_EQ expression    { 
                                                 if($1->type != $3->type) 
                                                     yyerror("Both expressions must be from the same type"); 
-                                                if($1->type != TYPE_CHAR && $1->type != TYPE_BOOL && $1->type != TYPE_INT && $1->type != TYPE_FLOAT && $1->type != TYPE_DOUBLE)
+                                                if($1->type != TYPE_CHAR && $1->type != TYPE_BOOL && $1->type != TYPE_INT && $1->type != TYPE_FLOAT && $1->type != TYPE_DOUBLE && !is_pointer_type($1->type))
                                                     yyerror("Expressions must be of a valid type (int, float, double, char, bool)");
 
                                                 $$ = mknode("!="); 
@@ -366,8 +366,22 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                                 add_child($$, $3); 
                                                 $$->type = TYPE_BOOL;  
                                             } |
-            expression AND expression { if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) yyerror("AND operator must have boolean expressions"); $$ = mknode("&&"); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
-            expression OR expression { if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) yyerror("OR operator must have boolean expressions"); $$ = mknode("||"); add_child($$, $1); add_child($$, $3); $$->type = TYPE_BOOL;  } |
+            expression AND expression   { 
+                                            if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) 
+                                                yyerror("AND operator must have boolean expressions"); 
+                                            $$ = mknode("&&"); 
+                                            add_child($$, $1); 
+                                            add_child($$, $3); 
+                                            $$->type = TYPE_BOOL;  
+                                        } |
+            expression OR expression    { 
+                                            if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) 
+                                                yyerror("OR operator must have boolean expressions"); 
+                                            $$ = mknode("||"); 
+                                            add_child($$, $1); 
+                                            add_child($$, $3);
+                                            $$->type = TYPE_BOOL;  
+                                        } |
             NOT expression { if($2->type != TYPE_BOOL) yyerror("NOT operator can only be used on boolean expressions"); $$ = mknode("!"); add_child($$, $2); $$->type = TYPE_BOOL; } |
             values { $$ = $1; } 
 
