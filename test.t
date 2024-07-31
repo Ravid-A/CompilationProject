@@ -8,12 +8,12 @@ public void foo2(args>> int: x, y, z; float: f){
 
 public int goo(args>> int: x): static{ 
     var int : b;
-    string d[30] <- "Hello";
+    string d[30] <- "Hello", k[30] <- "World";
     private void foo(args>> int: x, y, z; float: f){
         b <- 3+5;
     }
 
-    for(b <- 0; b < 10; b <- b+1){
+    for(b <- 0; b < 5; b <- b+1){
         b <- b+1;
     }
     

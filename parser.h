@@ -531,12 +531,12 @@ Type get_expression_type(node* e1, node* e2)
 {
     if(e1->type != TYPE_FLOAT && e1->type != TYPE_INT && e1->type != TYPE_DOUBLE)
     {
-        yyerror("Invalid type for expression");
+        yyerror("Invalid type for basic math expression, must be int, float or double");
     }
 
     if(e2->type != TYPE_FLOAT && e2->type != TYPE_INT && e2->type != TYPE_DOUBLE)
     {
-        yyerror("Invalid type for expression");
+        yyerror("Invalid type for basic math expression, must be int, float or double");
     }
 
     if(e1->type == TYPE_FLOAT || e2->type == TYPE_FLOAT)
