@@ -41,6 +41,7 @@ typedef struct Symbol
     char *name;
     SymbolType type;
     Type return_type;
+    int array_size;
     Type* args;
     int args_count;
     bool is_public;
@@ -75,7 +76,9 @@ char* ftos(float f);
 void make_scope();
 void add_function(Scope *scope, char *name, Type return_type, node *args, node* is_public, node* is_static);
 void add_variable(Scope *scope, char *name, Type type);
+void add_string_variable(Scope *scope, char *name, int array_size);
 void add_variables(Scope *scope, node *variables, Type type);
+void add_string_variables(Scope *scope, node *variables);
 void add_arguments_to_scope(Scope *scope, node *args);
 void exit_scope();
 
@@ -291,6 +294,17 @@ void add_variable(Scope *scope, char *name, Type type)
     scope->symbols = new_symbol;
 }
 
+void add_string_variable(Scope *scope, char *name, int array_size)
+{
+    Symbol *new_symbol = (Symbol*)malloc(sizeof(Symbol));
+    new_symbol->name = name;
+    new_symbol->type = SYMBOL_VARIABLE;
+    new_symbol->return_type = TYPE_STRING;
+    new_symbol->array_size = array_size;
+    new_symbol->next = scope->symbols;
+    scope->symbols = new_symbol;
+}
+
 void add_variables(Scope *scope, node *variables, Type type)
 {
     for(int i = 0; i < variables->children_count; i++)
@@ -298,6 +312,18 @@ void add_variables(Scope *scope, node *variables, Type type)
         node* variable = variables->children[i];
         char* name = strdup(variable->token);
         add_variable(scope, name, type);
+    }
+}
+
+void add_string_variables(Scope *scope, node *variables)
+{
+    for(int i = 0; i < variables->children_count; i++)
+    {
+        node* variable = variables->children[i];
+        char* name = strdup(variable->token);
+        node* size = variable->children[0];
+        int array_size = atoi(size->children[0]->token);
+        add_string_variable(scope, name, array_size);
     }
 }
 

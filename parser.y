@@ -44,9 +44,9 @@ program: function
 %right INDEX_OPEN
 
 %type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
-%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block
-%type <node> return_statement variable_declaration possible_statements block loop_statement argument_declaration
-%type <node> variable_declaration_value variable_id_declaration code_block_statements code_block_statement code_block_declarations variable_type
+%type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block string_declaration
+%type <node> return_statement variable_declaration possible_statements block loop_statement argument_declaration for_init string_id_declaration string_declaration_value
+%type <node> variable_declaration_value variable_id_declaration code_block_statements code_block_statement code_block_declarations variable_type possible_variable_declaration
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
@@ -102,13 +102,17 @@ return_type: variable_type  {
                     $$ = mknode("RETURN");
                     add_child($$, mknode("VOID")); 
                     $$->type = TYPE_VOID;
-                };
+                }
+            | STRING { 
+                        $$ = mknode("RETURN");
+                        add_child($$, mknode("STRING")); 
+                        $$->type = TYPE_STRING;
+                    };
 
 variable_type: INT { $$ = mknode("INT"); $$->type = TYPE_INT; } |
                CHAR { $$ = mknode("CHAR"); $$->type = TYPE_CHAR; } |
                FLOAT { $$ = mknode("FLOAT"); $$->type = TYPE_FLOAT; } |
                DOUBLE { $$ = mknode("DOUBLE"); $$->type = TYPE_DOUBLE; } |
-               STRING { $$ = mknode("STRING"); $$->type = TYPE_STRING; } |
                BOOL { $$ = mknode("BOOL"); $$->type = TYPE_BOOL; } |
                PTR_INT { $$ = mknode("PTR_INT"); $$->type = TYPE_PTR_INT; } |
                PTR_FLOAT { $$ = mknode("PTR_FLOAT"); $$->type = TYPE_PTR_FLOAT; } |
@@ -131,7 +135,6 @@ arguments_variables: arguments_variables SEMICOL variable_type COLON argument_de
 
 argument_declaration: argument_declaration COMMA IDENTIFIER { add_child($$, mknode($3)); }
                       | IDENTIFIER { $$ = mknode("ARGS"); add_child($$, mknode($1)); }
-
 
 
 variable_assignment: IDENTIFIER ASS expression { 
@@ -197,6 +200,46 @@ variable_assignment: IDENTIFIER ASS expression {
                      | IDENTIFIER INDEX_OPEN INDEX_CLOSE ASS expression { yyerror("Index must be provided"); }
                      | ASS expression { yyerror("missing variable indetifier"); } ;
 
+string_declaration: STRING string_id_declaration    {
+                                                        add_string_variables(current_scope, $2);
+                                                        
+                                                        $$ = mknode("VARDEC"); 
+                                                        node* typenode = mknode("STRING");
+                                                        add_nodes_to_node(typenode, $2); 
+                                                        add_child($$, typenode);
+                                                    }
+
+string_id_declaration: string_id_declaration COMMA IDENTIFIER INDEX_OPEN LIT_INT INDEX_CLOSE string_declaration_value   {
+                                                                                                                            if(check_symbol(current_scope, $3, SYMBOL_VARIABLE))
+                                                                                                                            {
+                                                                                                                                yyerror("Symbol is already in use");
+                                                                                                                            }
+
+                                                                                                                            node* varnode = mknode($3); 
+                                                                                                                            node* sizenode = mknode("SIZE");
+                                                                                                                            add_child(sizenode, mknode(itos($5)));
+                                                                                                                            add_child(varnode, sizenode);
+                                                                                                                            add_child(varnode, $7);
+                                                                                                                            add_child($$, varnode);
+                                                                                                                        } |
+                        IDENTIFIER INDEX_OPEN LIT_INT INDEX_CLOSE string_declaration_value  {
+                                                                                                if(check_symbol(current_scope, $1, SYMBOL_VARIABLE))
+                                                                                                {
+                                                                                                    yyerror("Symbol is already in use");
+                                                                                                }
+
+                                                                                                $$ = mknode("VARDECS");
+                                                                                                node* varnode = mknode($1); 
+                                                                                                node* sizenode = mknode("SIZE");
+                                                                                                add_child(sizenode, mknode(itos($3)));
+                                                                                                add_child(varnode, sizenode);
+                                                                                                add_child(varnode, $5);
+                                                                                                add_child($$, varnode);
+                                                                                            };
+
+string_declaration_value: ASS LIT_STRING { $$ = mknode($2); }
+                          | {   $$ = NULL; }
+
 variable_declaration: VAR variable_type COLON variable_id_declaration   { 
                                                                             add_variables(current_scope, $4, $2->type);
 
@@ -205,6 +248,7 @@ variable_declaration: VAR variable_type COLON variable_id_declaration   {
                                                                             add_nodes_to_node(typenode, $4); 
                                                                             add_child($$, typenode); 
                                                                         }
+                      | VAR STRING COLON variable_id_declaration { yyerror("This in not a valid string declaration, strings are declared like this: \"string: x[30]\""); }
                       | VAR COLON variable_id_declaration { yyerror("Missing variable type"); }
                       | VAR variable_id_declaration { yyerror("Missing variable type");  }
 
@@ -213,8 +257,6 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                                                 {
                                                                                                     yyerror("Symbol is already in use");
                                                                                                 }
-
-                                                                                                
 
                                                                                                 node* varnode = mknode($3); 
                                                                                                 add_child(varnode, $4); 
@@ -226,7 +268,7 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                     yyerror("Symbol is already in use");
                                                                 }
 
-                                                                $$ = mknode("ARGS"); 
+                                                                $$ = mknode("VARDECS"); 
                                                                 node* varnode = mknode($1); 
                                                                 add_child(varnode, $2); 
                                                                 add_child($$, varnode); 
@@ -459,7 +501,7 @@ loop_statement: WHILE PAREN_OPEN expression PAREN_CLOSE statement_block     {
                                                                                             add_child($$, $2); 
                                                                                             add_child($$, $5); 
                                                                                         }
-               | FOR PAREN_OPEN variable_declaration SEMICOL expression SEMICOL variable_assignment PAREN_CLOSE statement_block { 
+               | FOR PAREN_OPEN for_init SEMICOL expression SEMICOL variable_assignment PAREN_CLOSE statement_block { 
                                                                                                                                     if($5->type != TYPE_BOOL)
                                                                                                                                         yyerror("For statement must have a boolean expression");
                                                                                                                                         
@@ -468,7 +510,10 @@ loop_statement: WHILE PAREN_OPEN expression PAREN_CLOSE statement_block     {
                                                                                                                                     add_child($$, $5); 
                                                                                                                                     add_child($$, $7); 
                                                                                                                                     add_child($$, $9); 
-                                                                                                                                }
+                                                                                                                                } ;
+
+for_init: variable_assignment { $$ = $1; }
+          | { yyerror("For loop must have an initialization statement, which can only be a variable assignment"); }
 
 if_statement: IF PAREN_OPEN expression PAREN_CLOSE statement_block %prec LOWER_THAN_ELSE    { 
                                                                                                 if($3->type != TYPE_BOOL)
@@ -500,8 +545,11 @@ declarations: variable_declarations functions_declarations { $$ = mknode("DECLAR
               functions_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); } |
               functions_declarations variable_declarations { yyerror("Function declarations must be before variable declarations"); } ;
 
-variable_declarations: variable_declaration SEMICOL { $$ = mknode("VAR_DECS"); add_child($$, $1); } |
-                        variable_declarations variable_declaration SEMICOL { add_child($$, $2); } ;
+variable_declarations: possible_variable_declaration SEMICOL { $$ = mknode("VAR_DECS"); add_child($$, $1); } |
+                        variable_declarations possible_variable_declaration SEMICOL { add_child($$, $2); } ;
+
+possible_variable_declaration: variable_declaration { $$ = $1; } |
+                               string_declaration { $$ = $1; } ;
 
 functions_declarations: function { $$ = mknode("FUNC_DECS"); add_child($$, $1); } |
                         functions_declarations function { add_child($$, $2); } ;
