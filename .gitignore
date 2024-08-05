@@ -6,6 +6,7 @@ y.output
 # my doc files
 tree
 tree.txt
+code.asm
 
 # vscode
 .vscode

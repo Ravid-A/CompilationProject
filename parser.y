@@ -94,6 +94,7 @@ function:   function_data IDENTIFIER PAREN_OPEN arguments PAREN_CLOSE is_static 
 
 function_data: privacy_of_function return_type { $$ = mknode("FUNC_DATA"); add_child($$, $1); add_child($$, $2); }
                | privacy_of_function { yyerror("Missing return type for function"); };
+               | privacy_of_function STRING { yyerror("String cannot be a return type for a function"); };
                | return_type { yyerror("Missing privacy of function"); };
 
 privacy_of_function: PUBLIC { $$ = mknode("PUBLIC"); }
@@ -112,8 +113,7 @@ return_type: variable_type  {
                     $$ = mknode("RETURN");
                     add_child($$, mknode("VOID")); 
                     $$->type = TYPE_VOID;
-                }
-            | STRING { yyerror("String is not a valid return type for a function"); }
+                };
 
 variable_type: INT { $$ = mknode("INT"); $$->type = TYPE_INT; } |
                CHAR { $$ = mknode("CHAR"); $$->type = TYPE_CHAR; } |
@@ -243,9 +243,8 @@ string_id_declaration: string_id_declaration COMMA IDENTIFIER INDEX_OPEN LIT_INT
                                                                                                 add_child($$, varnode);
                                                                                             };
 
-string_declaration_value:  ASS LIT_STRING { $$ = mknode($2); }
-                          | ASS expression { yyerror("In declaration of string, the varaible can only be assigned a litral string"); }
-                          | {   $$ = NULL; }
+string_declaration_value:  ASS expression { if($2->type != TYPE_STRING) yyerror("Value for a string variable can only be of type string"); $$ = $2; }
+                          | { $$ = NULL; }
 
 variable_declaration: VAR variable_type COLON variable_id_declaration   { 
                                                                             add_variables(current_scope, $4, $2->type);
@@ -581,9 +580,8 @@ block: code_block_declarations code_block_statements {
 code_block_statements: code_block_statements code_block_statement  { add_child($$, $2); }
                     | code_block_statement { $$ = mknode("STATEMENTS"); add_child($$, $1); }
 
-code_block_statement: BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; }
-                    | possible_statements { $$ = $1; }
-                    | return_statement { $$ = $1; }
+code_block_statement:  possible_statements { $$ = $1; }
+                       | return_statement { $$ = $1; }
 
 code_block_declarations: variable_declarations { $$ = $1; }
                          | function { yyerror("Function declaration cannot be inside a code block"); }
@@ -596,13 +594,13 @@ loop_statement: WHILE PAREN_OPEN expression PAREN_CLOSE statement_block     {
                                                                                 add_child($$, $3); 
                                                                                 add_child($$, $5); 
                                                                             }
-               | DO statement_block WHILE PAREN_OPEN expression PAREN_CLOSE SEMICOL     { 
-                                                                                            if($5->type != TYPE_BOOL)
+               | DO BLOCK_OPEN block BLOCK_CLOSE WHILE PAREN_OPEN expression PAREN_CLOSE SEMICOL     { 
+                                                                                            if($7->type != TYPE_BOOL)
                                                                                                 yyerror("Do-While statement must have a boolean expression");
 
                                                                                             $$ = mknode("DO"); 
-                                                                                            add_child($$, $2); 
-                                                                                            add_child($$, $5); 
+                                                                                            add_child($$, $3); 
+                                                                                            add_child($$, $7); 
                                                                                         }
                | FOR PAREN_OPEN for_init SEMICOL expression SEMICOL variable_assignment PAREN_CLOSE statement_block { 
                                                                                                                                     if($5->type != TYPE_BOOL)
@@ -636,9 +634,8 @@ if_statement: IF PAREN_OPEN expression PAREN_CLOSE statement_block %prec LOWER_T
                                                                                             add_child($$, $7); 
                                                                                         };
 
-statement_block: BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; }
-                | possible_statements { $$ = $1; } 
-                | return_statement { $$ = $1; } ;
+statement_block: possible_statements { $$ = $1; } 
+                 | return_statement { $$ = $1; } ;
 
 statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
             statements possible_statements { add_child($$, $2); } ;
