@@ -421,35 +421,14 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                         $$->type = sym->return_type;
                     } |
         PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
-        REF IDENTIFIER  { 
-                            if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
-                            yyerror("Variable must be declared before the use statement");
-                            
-                            Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
-                            if(!is_referenceable(sym))
-                                yyerror("Variable is not referenceable");
+        REF expression  { 
+                            if(!is_referenceable_type($2->type))
+                                yyerror("Reference is only available for reference types");
 
                             $$ = mknode("REF"); 
-                            add_child($$, mknode($2));
-                            $$->type = type_to_pointer(sym->return_type);
+                            add_child($$, $2);
+                            $$->type = type_to_pointer($2->type);
                         } |
-        REF IDENTIFIER INDEX_OPEN expression INDEX_CLOSE { 
-                                                            if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
-                                                                yyerror("Variable must be declared before the use statement");
-
-                                                            Symbol* sym = get_symbol(current_scope, $2, SYMBOL_VARIABLE);
-                                                            if(sym->return_type != TYPE_STRING)
-                                                                yyerror("Index in array can only be used on a string variable.");
-
-                                                            if($4->type != TYPE_INT)
-                                                                yyerror("Index must be an integer");
-
-                                                            $$ = mknode("REF"); 
-                                                            add_child($$, mknode(ConcatString("INDEX ", $2))); 
-                                                            add_child($$, $4); 
-
-                                                            $$->type = TYPE_PTR_CHAR;
-                                                        } |
         '*' expression %prec PTR    { 
                                         if(!is_pointer_type($2->type))
                                             yyerror("Deref is only available for pointers");

@@ -97,6 +97,7 @@ Symbol *get_current_function(Scope *scope);
 bool is_pointer(Symbol *symbol);
 bool is_pointer_type(Type type);
 bool is_referenceable(Symbol *symbol);
+bool is_referenceable_type(Type type);
 Type type_to_pointer(Type type);
 Type pointer_to_type(Type type);
 
@@ -526,6 +527,11 @@ bool is_pointer_type(Type type)
 bool is_referenceable(Symbol *symbol)
 {
     return symbol->return_type == TYPE_INT || symbol->return_type == TYPE_FLOAT || symbol->return_type == TYPE_DOUBLE || symbol->return_type == TYPE_CHAR;
+}
+
+bool is_referenceable_type(Type type)
+{
+    return type == TYPE_INT || type == TYPE_FLOAT || type == TYPE_DOUBLE || type == TYPE_CHAR;
 }
 
 Type type_to_pointer(Type type)
