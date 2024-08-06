@@ -89,7 +89,6 @@ bool check_main_exists(Scope *scope);
 Type get_return_type(Scope *scope);
 Type check_return_required(Scope *scope);
 void kill_scope(Scope *scope);
-void kill_symbol(Symbol *symbol);
 
 Symbol *get_function(Scope *scope);
 Symbol *get_current_function(Scope *scope);
@@ -500,16 +499,9 @@ void kill_scope(Scope *scope)
     while(current)
     {
         Symbol *next = current->next;
-        kill_symbol(current);
+        free(current);
         current = next;
     }
-    free(scope);
-}
-
-void kill_symbol(Symbol *symbol)
-{
-    free(symbol->name);
-    free(symbol);
 }
 
 // Helper functions
