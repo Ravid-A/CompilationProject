@@ -616,14 +616,7 @@ void check_call_arguments(Symbol *function, node *args)
 
 bool is_function_exists_in_scope(Scope *scope, Symbol *symbol)
 {
-    //return is_function_in_scope(scope, symbol) || is_function_in_scope(scope->parent, symbol);
-    bool exists = is_function_in_scope(scope, symbol);
-    if(exists)
-    {
-        return true;
-    }
-
-    return is_function_exists_in_scope(scope->parent, symbol);
+    return is_function_in_scope(scope, symbol) || is_function_in_scope(scope->parent, symbol);
 }
 
 bool is_function_exists_in_scope_rec(Scope *scope, Symbol *symbol)
