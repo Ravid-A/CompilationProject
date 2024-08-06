@@ -89,7 +89,6 @@ bool check_main_exists(Scope *scope);
 Type get_return_type(Scope *scope);
 Type check_return_required(Scope *scope);
 void kill_scope(Scope *scope);
-void kill_symbol(Symbol *symbol);
 
 Symbol *get_function(Scope *scope);
 Symbol *get_current_function(Scope *scope);
@@ -97,6 +96,7 @@ Symbol *get_current_function(Scope *scope);
 bool is_pointer(Symbol *symbol);
 bool is_pointer_type(Type type);
 bool is_referenceable(Symbol *symbol);
+bool is_referenceable_type(Type type);
 Type type_to_pointer(Type type);
 Type pointer_to_type(Type type);
 
@@ -499,16 +499,9 @@ void kill_scope(Scope *scope)
     while(current)
     {
         Symbol *next = current->next;
-        kill_symbol(current);
+        free(current);
         current = next;
     }
-    free(scope);
-}
-
-void kill_symbol(Symbol *symbol)
-{
-    free(symbol->name);
-    free(symbol);
 }
 
 // Helper functions
@@ -526,6 +519,11 @@ bool is_pointer_type(Type type)
 bool is_referenceable(Symbol *symbol)
 {
     return symbol->return_type == TYPE_INT || symbol->return_type == TYPE_FLOAT || symbol->return_type == TYPE_DOUBLE || symbol->return_type == TYPE_CHAR;
+}
+
+bool is_referenceable_type(Type type)
+{
+    return type == TYPE_INT || type == TYPE_FLOAT || type == TYPE_DOUBLE || type == TYPE_CHAR;
 }
 
 Type type_to_pointer(Type type)
@@ -610,14 +608,7 @@ void check_call_arguments(Symbol *function, node *args)
 
 bool is_function_exists_in_scope(Scope *scope, Symbol *symbol)
 {
-    //return is_function_in_scope(scope, symbol) || is_function_in_scope(scope->parent, symbol);
-    bool exists = is_function_in_scope(scope, symbol);
-    if(exists)
-    {
-        return true;
-    }
-
-    return is_function_exists_in_scope(scope->parent, symbol);
+    return is_function_in_scope(scope, symbol) || is_function_in_scope(scope->parent, symbol);
 }
 
 bool is_function_exists_in_scope_rec(Scope *scope, Symbol *symbol)
