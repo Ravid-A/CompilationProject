@@ -269,7 +269,10 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
 
                                                                                                 if($4 && $4->type != vartype)
                                                                                                 {
-                                                                                                    yyerror("Type of the value doesn't match the variable type");
+                                                                                                    if(!is_pointer_type(vartype) || (is_pointer_type(vartype) && $4->type != TYPE_NULL))
+                                                                                                    {
+                                                                                                        yyerror("Type of the value doesn't match the variable type");
+                                                                                                    }
                                                                                                 }
 
                                                                                                 add_variable(current_scope->parent, $3, vartype);
@@ -288,7 +291,10 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
 
                                                                 if($2 && $2->type != vartype)
                                                                 {
-                                                                    yyerror("Type of the value doesn't match the variable type");
+                                                                    if(!is_pointer_type(vartype) || (is_pointer_type(vartype) && $2->type != TYPE_NULL))
+                                                                    {
+                                                                        yyerror("Type of the value doesn't match the variable type");
+                                                                    }
                                                                 }
                                                                                                 
                                                                 add_variable(current_scope->parent, $1, vartype);
