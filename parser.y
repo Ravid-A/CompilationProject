@@ -214,6 +214,7 @@ string_declaration: STRING string_id_declaration    {
                                                         add_nodes_to_node(typenode, $2); 
                                                         add_child($$, typenode);
                                                     }
+                    | STRING COLON { yyerror("No need for the colon"); }
 
 string_id_declaration: string_id_declaration COMMA IDENTIFIER INDEX_OPEN LIT_INT INDEX_CLOSE string_declaration_value   {
                                                                                                                             if(check_symbol(current_scope, $3, SYMBOL_VARIABLE))
