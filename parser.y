@@ -249,8 +249,6 @@ string_declaration_value:  ASS expression { if($2->type != TYPE_STRING) yyerror(
 variable_declaration: VAR variable_type COLON { make_scope(); add_variable(current_scope, "vartype", $2->type); } variable_id_declaration   { 
                                                                                                                                                 exit_scope();
 
-                                                                                                                                                add_variables(current_scope, $5, $2->type);
-
                                                                                                                                                 $$ = mknode("VARDEC"); 
                                                                                                                                                 node* typenode = $2; 
                                                                                                                                                 add_nodes_to_node(typenode, $5); 
@@ -263,7 +261,7 @@ variable_declaration: VAR variable_type COLON { make_scope(); add_variable(curre
 variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_declaration_value { 
                                                                                                 Type vartype = current_scope->symbols->return_type;
 
-                                                                                                if(check_symbol(current_scope, $3, SYMBOL_VARIABLE))
+                                                                                                if(check_symbol(current_scope->parent, $3, SYMBOL_VARIABLE))
                                                                                                 {
                                                                                                     yyerror("Symbol is already in use");
                                                                                                 }
@@ -273,6 +271,8 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                                                     yyerror("Type of the value doesn't match the variable type");
                                                                                                 }
 
+                                                                                                add_variable(current_scope->parent, $3, vartype);
+
                                                                                                 node* varnode = mknode($3); 
                                                                                                 add_child(varnode, $4); 
                                                                                                 add_child($$, varnode); 
@@ -280,7 +280,7 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                       | IDENTIFIER variable_declaration_value { 
                                                                 Type vartype = current_scope->symbols->return_type;
 
-                                                                if(check_symbol(current_scope, $1, SYMBOL_VARIABLE))
+                                                                if(check_symbol(current_scope->parent, $1, SYMBOL_VARIABLE))
                                                                 {
                                                                     yyerror("Symbol is already in use");
                                                                 }
@@ -289,6 +289,8 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
                                                                 {
                                                                     yyerror("Type of the value doesn't match the variable type");
                                                                 }
+                                                                                                
+                                                                add_variable(current_scope->parent, $1, vartype);
 
                                                                 $$ = mknode("VARDECS"); 
                                                                 node* varnode = mknode($1); 
