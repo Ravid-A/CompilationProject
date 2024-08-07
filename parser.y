@@ -254,8 +254,8 @@ variable_declaration: VAR variable_type COLON { make_scope(); add_variable(curre
                                                                                                                                                 add_nodes_to_node(typenode, $5); 
                                                                                                                                                 add_child($$, typenode); 
                                                                                                                                             }
-                      | VAR STRING COLON variable_id_declaration { yyerror("This in not a valid string declaration, strings are declared like this: \"string: x[30]\""); }
-                      | VAR COLON variable_id_declaration { yyerror("Missing variable type"); }
+                      | VAR STRING { yyerror("This in not a valid string declaration, strings are declared like this: \"string: x[30]\""); }
+                      | VAR COLON { yyerror("Missing variable type"); }
                       | VAR variable_id_declaration { yyerror("Missing variable type");  }
 
 variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_declaration_value { 
