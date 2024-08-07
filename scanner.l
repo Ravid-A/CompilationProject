@@ -4,7 +4,7 @@ NONZERO [1-9]
 SIGN [\-\+]
 LETTER [a-zA-Z]
 CHARACHTER [a-zA-Z0-9]
-char \'.\'
+char \'\\?.\'
 int_dec 0|{NONZERO}{DIGIT}*
 int_hex 0[xX]{DIGIT_HEX}+
 int (^{SIGN})?({int_hex}|{int_dec})
