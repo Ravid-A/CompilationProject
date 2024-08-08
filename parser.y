@@ -37,8 +37,8 @@ program: function
 %left AND
 %left EQ NOT_EQ
 %left LESS LESS_EQ GRTR GRTR_EQ
-%left '+' '-' '*'
-%left DIV
+%left '+' '-' 
+%left DIV '*'
 %right NOT
 %right REF
 %right INDEX_OPEN
