@@ -51,11 +51,12 @@ program: function
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
 %nonassoc PTR
+%nonassoc LIT_INT
 %nonassoc UPLUS UMINUS
 
 %%
 
-start: s { if(!check_main_exists(current_scope)) yyerror("There is no main function");  printf("ACCEPT\n"); print_tree_to_file($1); kill_scope(current_scope); }
+start: s { if(!check_main_exists(current_scope)) yyerror("There is no main function");  printf("\nACCEPT\n\n"); print_tree_to_file($1); kill_scope(current_scope); }
 
 s: s function {
         add_child($$, $2);
@@ -162,6 +163,9 @@ variable_assignment: IDENTIFIER ASS expression {
 
                                                     $$ = mknode(ConcatString("ASS ", $1)); 
                                                     add_child($$, $3); 
+                                                    $$->code = ConcatString($$->code, $3->code);
+                                                    char* generated = gen($1,$3->var,"","");
+                                                    $$->code = ConcatString($$->code, generated);
                                                 };
                      | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS expression { 
                                                                                         if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
@@ -182,6 +186,7 @@ variable_assignment: IDENTIFIER ASS expression {
                                                                                         node* ass = mknode("ASS"); 
                                                                                         add_child(ass, $6); 
                                                                                         add_child($$, ass); 
+
                                                                                     };
                      | '*' %prec PTR IDENTIFIER ASS expression    { 
                                                                         if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
@@ -308,10 +313,10 @@ variable_id_declaration: variable_id_declaration COMMA IDENTIFIER variable_decla
 variable_declaration_value: ASS expression { $$ = $2; }
                             | {$$ = NULL; };
 
-expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
-            expression '-' expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
-            expression '*' expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
-            expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); } |
+expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); tacbinary($$, $1, "+", $3); } |
+            expression '-' expression { $$ = mknode("-"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); tacbinary($$, $1, "-", $3);} |
+            expression '*' expression { $$ = mknode("*"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); tacbinary($$, $1, "*", $3);} |
+            expression DIV expression { $$ = mknode("/"); add_child($$, $1); add_child($$, $3); $$->type = get_expression_type($1, $3); tacbinary($$, $1, "/", $3);} |
             expression EQ expression    { 
                                             if($1->type != $3->type) 
                                                 yyerror("Both expressions must be from the same type"); 
@@ -320,7 +325,8 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                             $$ = mknode("=="); 
                                             add_child($$, $1); 
                                             add_child($$, $3); 
-                                            $$->type = TYPE_BOOL; 
+                                            $$->type = TYPE_BOOL;
+                                            tacbinary($$, $1, "==", $3);
                                         } |
             expression NOT_EQ expression    { 
                                                 if($1->type != $3->type) 
@@ -332,6 +338,9 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                                 add_child($$, $1); 
                                                 add_child($$, $3); 
                                                 $$->type = TYPE_BOOL; 
+                                                node* temp = mknode("temp");
+                                                tacbinary(temp, $1, "==", $3);
+                                                tacnot($$,temp);
                                             } |
             expression GRTR expression  { 
                                             if($1->type != TYPE_FLOAT && $1->type != TYPE_INT && $1->type != TYPE_DOUBLE)
@@ -347,7 +356,9 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                             $$ = mknode(">"); 
                                             add_child($$, $1);
                                             add_child($$, $3); 
-                                            $$->type = TYPE_BOOL; 
+                                            $$->type = TYPE_BOOL;
+                                            tacbinary($$, $1, ">", $3);
+
                                         } |
             expression GRTR_EQ expression   { 
                                                 if($1->type != TYPE_FLOAT && $1->type != TYPE_INT && $1->type != TYPE_DOUBLE)
@@ -363,7 +374,12 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                                 $$ = mknode(">="); 
                                                 add_child($$, $1); 
                                                 add_child($$, $3);
-                                                 $$->type = TYPE_BOOL;  
+                                                $$->type = TYPE_BOOL;  
+                                                node* grtr = mknode("grtr");
+                                                node* eq = mknode("eq");
+                                                tacbinary(grtr, $1, ">", $3);
+                                                tacbinary(eq, $1, "==", $3);
+                                                tacor($$, grtr, eq);
                                             } |
             expression LESS expression  { 
                                             if($1->type != TYPE_FLOAT && $1->type != TYPE_INT && $1->type != TYPE_DOUBLE)
@@ -379,7 +395,8 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                             $$ = mknode("<"); 
                                             add_child($$, $1); 
                                             add_child($$, $3); 
-                                            $$->type = TYPE_BOOL;  
+                                            $$->type = TYPE_BOOL;
+                                            tacbinary($$, $1, "<", $3);
                                         } |
             expression LESS_EQ expression   { 
                                                 if($1->type != TYPE_FLOAT && $1->type != TYPE_INT && $1->type != TYPE_DOUBLE)
@@ -396,6 +413,11 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                                 add_child($$, $1); 
                                                 add_child($$, $3); 
                                                 $$->type = TYPE_BOOL;  
+                                                node* less = mknode("less");
+                                                node* eq = mknode("eq");
+                                                tacbinary(less, $1, "<", $3);
+                                                tacbinary(eq, $1, "==", $3);
+                                                tacor($$, less, eq);
                                             } |
             expression AND expression   { 
                                             if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) 
@@ -404,6 +426,7 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                             add_child($$, $1); 
                                             add_child($$, $3); 
                                             $$->type = TYPE_BOOL;  
+                                            tacand($$, $1, $3);
                                         } |
             expression OR expression    { 
                                             if($1->type != TYPE_BOOL || $3->type != TYPE_BOOL) 
@@ -411,18 +434,19 @@ expression: expression '+' expression { $$ = mknode("+"); add_child($$, $1); add
                                             $$ = mknode("||"); 
                                             add_child($$, $1); 
                                             add_child($$, $3);
-                                            $$->type = TYPE_BOOL;  
+                                            $$->type = TYPE_BOOL;
+                                            tacor($$, $1, $3);
                                         } |
-            NOT expression { if($2->type != TYPE_BOOL) yyerror("NOT operator can only be used on boolean expressions"); $$ = mknode("!"); add_child($$, $2); $$->type = TYPE_BOOL; } |
+            NOT expression { if($2->type != TYPE_BOOL) yyerror("NOT operator can only be used on boolean expressions"); $$ = mknode("!"); add_child($$, $2); $$->type = TYPE_BOOL; tacnot($$,$2); } |
             values { $$ = $1; } 
 
-values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
-        LIT_CHAR { $$ = mknode(ctos($1)); $$->type = TYPE_CHAR; } |
-        LIT_INT { $$ = mknode(itos($1)); $$->type = TYPE_INT; } |
-        LIT_DOUBLE { $$ = mknode(ftos($1)); $$->type = TYPE_DOUBLE; } |
-        LIT_FLOAT { $$ = mknode(ftos($1)); $$->type = TYPE_FLOAT; } |
-        LIT_STRING { $$ = mknode($1); $$->type = TYPE_STRING; } |
-        NULL_TOKEN { $$ = mknode("NULL"); $$->type = TYPE_NULL; } |
+values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL;   $$->var= $$->token; } |
+        LIT_CHAR { $$ = mknode(ctos($1)); $$->type = TYPE_CHAR;             $$->var= $$->token; } |
+        LIT_INT { $$ = mknode(itos($1)); $$->type = TYPE_INT;               $$->var= $$->token; } |
+        LIT_DOUBLE { $$ = mknode(ftos($1)); $$->type = TYPE_DOUBLE;         $$->var= $$->token; } |
+        LIT_FLOAT { $$ = mknode(ftos($1)); $$->type = TYPE_FLOAT;           $$->var= $$->token; } |
+        LIT_STRING { $$ = mknode($1); $$->type = TYPE_STRING;               $$->var= $$->token; } |
+        NULL_TOKEN { $$ = mknode("NULL"); $$->type = TYPE_NULL;             $$->var= "0"; } |
         STRLEN IDENTIFIER STRLEN    { 
                                         if(!check_symbol_recursive(current_scope, $2, SYMBOL_VARIABLE)) 
                                             yyerror("Variable must be declared before the use statement");
@@ -434,8 +458,10 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                                         $$ = mknode("STRLEN"); 
                                         add_child($$, mknode($2)); 
                                         $$->type = TYPE_INT; 
+                                        
+                                        sprintf($$->var, "|%s|", $2);
                                     } |
-        STRLEN LIT_STRING STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); $$->type = TYPE_INT; } |
+        STRLEN LIT_STRING STRLEN { $$ = mknode("STRLEN"); add_child($$, mknode($2)); $$->type = TYPE_INT; $$->var = itos(strlen($2)-2); } |
         IDENTIFIER  { 
                         if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
                             yyerror("Variable must be declared before the use statement");
@@ -444,6 +470,8 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
 
                         $$ = mknode($1); 
                         $$->type = sym->return_type;
+                        free($$->var);
+                        $$->var = strdup($1);
                     } |
         PAREN_OPEN expression PAREN_CLOSE { $$ = $2; } |
         REF expression  { 
@@ -453,6 +481,8 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                             $$ = mknode("REF"); 
                             add_child($$, $2);
                             $$->type = type_to_pointer($2->type);
+
+                            tacunary($$, "&", $2);
                         } |
         '*' expression %prec PTR    { 
                                         if(!is_pointer_type($2->type))
@@ -461,9 +491,11 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                                         $$ = mknode("DEREF"); 
                                         add_child($$, $2); 
                                         $$->type = pointer_to_type($2->type);
+
+                                        tacunary($$, "*", $2);
                                     } |
         '+' expression %prec UPLUS { $$ = $2;} |
-        '-' expression %prec UMINUS { $$ = mknode("-"); add_child($$, $2); $$->type = $2->type; } |
+        '-' expression %prec UMINUS { $$ = mknode("-"); add_child($$, $2); $$->type = $2->type; tacunary($$, "-", $2); } |
         IDENTIFIER INDEX_OPEN expression INDEX_CLOSE    { 
                                                             if(!check_symbol_recursive(current_scope, $1, SYMBOL_VARIABLE)) 
                                                                 yyerror("Variable must be declared before the use statement");
@@ -478,6 +510,8 @@ values: LIT_BOOL { $$ = mknode($1? "True":"False"); $$->type = TYPE_BOOL; } |
                                                             $$ = mknode(ConcatString("INDEX ", $1)); 
                                                             add_child($$, $3); 
                                                             $$->type = TYPE_CHAR;
+
+                                                            tacindex($$, $1, $3);
                                                         } |
         function_call { $$ = $1; } ;
 
@@ -492,7 +526,7 @@ function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE {
                                                                     if(current_function->is_static && !sym->is_static)
                                                                         yyerror("Cannot call a non-static function from a static function");
 
-                                                                    if(!sym->is_public && current_function->is_public && !is_function_in_scope(current_scope->parent, sym))
+                                                                    if(!sym->is_public && current_function->is_public && !is_function_exists_in_scope(current_scope->parent, sym))
                                                                         yyerror("Cannot call a private function from a public function from a different scope");
 
                                                                     check_call_arguments(sym, $3);
@@ -502,6 +536,8 @@ function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE {
                                                                     add_child($$, $3); 
 
                                                                     $$->type = sym->return_type;
+
+
                                                                 }
 
 call_arguments: call_arguments COMMA expression { add_child($$, $3); }
@@ -641,8 +677,8 @@ if_statement: IF PAREN_OPEN expression PAREN_CLOSE statement_block %prec LOWER_T
 statement_block: possible_statements { $$ = $1; } 
                  | return_statement { $$ = $1; } ;
 
-statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); } |
-            statements possible_statements { add_child($$, $2); } ;
+statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); $$->code = ConcatString($$->code, $1->code); } |
+            statements possible_statements { add_child($$, $2); $$->code = ConcatString($$->code, "\n"); $$->code = ConcatString($$->code, $2->code); } ;
 
 declarations: variable_declarations functions_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); add_nodes_to_node($$,$2); }|
               variable_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); } |

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdbool.h>
 
 int yylex();
@@ -34,6 +35,10 @@ typedef struct node
 	struct node **children;
     int children_count;
     Type type;
+    char* code;
+    char* var;
+    char* begin;
+    char* after;
 } node;
 
 typedef struct Symbol
@@ -67,7 +72,10 @@ void printtree(node *tree, int indent, FILE *file);
 void print_tree_to_file(node *tree);
 void printIndent(int indent, FILE *file);
 
-char* ConcatString(char *s1, char *s2);
+char* ConcatString(const char *s1, const char *s2);
+char* dsprintf(const char* format, ...);
+char* string();
+void  append(char* dest, const char* src);
 
 char* ctos(char c);
 char* itos(int i);
@@ -107,6 +115,21 @@ bool is_function_in_scope(Scope *scope, Symbol *symbol);
 bool is_function_exists_in_scope(Scope *scope, Symbol *symbol);
 bool is_function_exists_in_scope_rec(Scope *scope, Symbol *symbol);
 
+//tac
+static int count_label = 0;
+static int count_var   = 0;
+
+char* freshLabel();
+char* freshVar();
+char* gen(const char* lhs, const char* val1, const char* op, const char* val2);
+void tacunary(node* dest, const char* op, node* src);
+void tacbinary(node* dest, node* var1, const char* op, node* var2);
+void tacor(node*, node*,node*);
+void tacand(node*, node*, node*);
+void tacnot(node* curr, node* nod);
+void tacindex(node* curr, char* id, node* expr);
+void tacass(node* dest, node* src);
+
 int yycolumnno = 0;
 
 // Node functions
@@ -119,6 +142,16 @@ node *mknode(char *token)
     newnode->token = newstr;
     newnode->children = NULL;
     newnode->children_count = 0;
+    newnode->code = string();
+    newnode->var = string();
+    newnode->begin = string();
+    newnode->after = string();
+
+    // char* str = string();
+    // append(str, "asd");
+    // fprintf(stderr, "%s", str);
+    // free(str);
+
     return newnode;
 }
 
@@ -134,6 +167,10 @@ void kill_node(node *node)
 
     free(node->token);
     free(node->children);
+    free(node->var);
+    free(node->code);
+    free(node->begin);
+    free(node->after);
     free(node);
 }
 
@@ -180,7 +217,13 @@ void printtree(node *tree, int indent, FILE *file)
 {
     if(!tree)
         return;
-
+    if(strlen(tree->code)){
+        fputs("\n\ncode:\n",stdout);
+        // fprintf(stdout,"%s:",tree->var);
+        fputs(tree->code,stdout);
+        fputs("\n",stdout);
+    }
+    
     bool print_paren = false;
 
     printIndent(indent, file);
@@ -214,12 +257,221 @@ void printIndent(int indent, FILE *file)
 
 // String functions
 
-char* ConcatString(char *s1, char *s2)
+char* ConcatString(const char *s1, const char *s2)
 {
     char *result = (char*)malloc(strlen(s1) + strlen(s2) + 1);
-    strcpy(result, s1);
-    strcat(result, s2);
+    // strcpy(result, s1);
+    // strcat(result, s2);
+    int index = 0;
+    const char* c = s1;
+    while(*c != '\0')
+        result[index++] = *c++;
+    c = s2;
+    while(*c != '\0')
+        result[index++] = *c++;
+    result[index] = '\0';
     return result;
+}
+
+char *dsprintf(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    va_list args_copy;
+    va_copy(args_copy,args);
+    int size = vsnprintf(NULL, 0, format, args_copy);
+    va_end(args_copy);
+
+    if (size < 0) {
+        va_end(args);
+        return NULL;
+    }
+
+    char* buffer = (char*)malloc(size + 1);
+    if (!buffer) {
+        va_end(args);
+        return NULL;
+    }
+
+    vsnprintf(buffer, size + 1, format, args);
+    va_end(args);
+
+    return buffer;
+}
+
+//creates empty string
+char *string()
+{
+    char* res = (char*)malloc(sizeof(char));
+    res[0] = '\0';
+    return res;
+}
+
+//modify the given string `dest` and append src at the end.
+void append(char *dest, const char *src)
+{
+    if(!src || strlen(src) == 0)
+        return;
+    char* res = ConcatString(dest, src);
+    //free(dest);
+    dest = strdup(res);
+}
+
+// TAC functions
+
+char* gen(const char *lhs, const char *val1, const char *op, const char *val2)
+{
+    char* res = strdup(lhs);
+    res = ConcatString(res, " = ");
+    res = ConcatString(res, val1);
+    //if(!strcmp(val1,""))
+        res = ConcatString(res," ");
+    res = ConcatString(res, op);
+    res = ConcatString(res," ");
+    res = ConcatString(res, val2);
+    res = ConcatString(res,"\n");
+    return res;
+}
+
+//generating 3ac for unary operator: var1 = op var0
+void tacunary(node *dest, const char* op, node *src)
+{
+    char* generated = gen(dest->var, "", op, src->var);
+    dest->code = ConcatString(dest->code, src->code);
+    dest->var = ConcatString(op, src->var);
+    free(generated);
+}
+
+//generating 3ac for binary operator: var2 = var0 op var1
+void tacbinary(node *dest, node *var1, const char *op, node *var2)
+{
+    dest->var = freshVar();
+    char* generated = gen(dest->var, var1->var, op, var2->var);
+    dest->code = ConcatString(dest->code, var1->code);
+    dest->code = ConcatString(dest->code, var2->code);
+    dest->code = ConcatString(dest->code, generated);
+    //free(generated);
+}
+
+void tacor(node* curr, node* expr1, node* expr2){
+    char* str;
+    curr->var = freshVar();
+    char* lt = freshLabel();
+    char* next = freshLabel();
+
+    curr->code = ConcatString(curr->code, expr1->code);
+
+    str = dsprintf("if %s goto %s\n", expr1->var, lt);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    curr->code = ConcatString(curr->code, expr2->code);
+
+    str = dsprintf("if %s goto %s\n", expr2->var, lt);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s = 0\n", curr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("goto %s\n", next);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s:\t%s = 1\n", lt, curr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s:",next);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+}
+
+void tacand(node* curr, node* expr1, node* expr2){
+    char* str;
+    curr->var = freshVar();
+    char* lf = freshLabel();
+    char* next = freshLabel();
+
+    curr->code = ConcatString(curr->code, expr1->code);
+
+    str = dsprintf("ifz %s goto %s\n", expr1->var, lf);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    curr->code = ConcatString(curr->code, expr2->code);
+
+    str = dsprintf("ifz %s goto %s\n", expr2->var, lf);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s = 1\n", curr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("goto %s\n", next);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s:\t%s = 0\n", lf, curr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s:",next);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+}
+
+void tacnot(node *curr, node *nod)
+{
+    char* str;
+    curr->var = freshVar();
+    char* lf = freshLabel();
+    char* next = freshLabel();
+
+    curr->code = ConcatString(curr->code, nod->code);
+
+    str = dsprintf("ifz %s goto %s\n", nod->var, lf);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s = 0\n", curr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("goto %s\n", next);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s:\t%s = 1\n", lf, curr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s:",next);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+}
+
+void tacindex(node *curr, char *id, node *expr)
+{
+    char* str;
+    char* ptr = freshVar();
+    curr->var = freshVar();
+
+    curr->code = ConcatString(curr->code, expr->code);
+
+    str = dsprintf("%s = %s + %s\n", ptr, id, expr->var);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
+
+    str = dsprintf("%s = *%s\n", curr->var, ptr);
+    curr->code = ConcatString(curr->code, str);
+    free(str);
 }
 
 char* ctos(char c)
@@ -636,4 +888,20 @@ bool is_function_in_scope(Scope *scope, Symbol *symbol)
         current = current->next;
     }
     return false;
+}
+
+char* freshLabel()
+{
+    char* numstr=itos(count_label++);
+    char* res = ConcatString("_L",numstr);
+    free(numstr);
+    return res;
+}
+
+char* freshVar()
+{
+    char* numstr=itos(count_var++);
+    char* res = ConcatString("_t",numstr);
+    free(numstr);
+    return res;
 }
