@@ -43,7 +43,7 @@ program: function
 %right REF
 %right INDEX_OPEN
 
-%type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations
+%type <node> s function return_type arguments arguments_variables function_body function_call declarations functions_declarations variable_declarations code_block
 %type <node> privacy_of_function is_static variable_assignment statements expression values if_statement call_arguments statement_block string_declaration function_data
 %type <node> return_statement variable_declaration possible_statements block loop_statement argument_declaration for_init string_id_declaration string_declaration_value
 %type <node> variable_declaration_value variable_id_declaration code_block_statements code_block_statement code_block_declarations variable_type possible_variable_declaration
@@ -492,7 +492,7 @@ function_call: IDENTIFIER PAREN_OPEN call_arguments PAREN_CLOSE {
                                                                     if(current_function->is_static && !sym->is_static)
                                                                         yyerror("Cannot call a non-static function from a static function");
 
-                                                                    if(!sym->is_public && current_function->is_public && !is_function_in_scope(current_scope->parent, sym))
+                                                                    if(!sym->is_public && current_function->is_public && !is_function_exists_in_scope(current_scope, sym))
                                                                         yyerror("Cannot call a private function from a public function from a different scope");
 
                                                                     check_call_arguments(sym, $3);
@@ -560,6 +560,8 @@ function_body: declarations statements return_statement {
     add_child($$, mknode("EMPTY"));
 }
 
+code_block: BLOCK_OPEN { make_scope(); } block { exit_scope(); } BLOCK_CLOSE { $$ = $3; }
+
 block: code_block_declarations code_block_statements {
     $$ = mknode("BLOCK"); 
     add_nodes_to_node($$, $1); 
@@ -598,13 +600,13 @@ loop_statement: WHILE PAREN_OPEN expression PAREN_CLOSE statement_block     {
                                                                                 add_child($$, $3); 
                                                                                 add_child($$, $5); 
                                                                             }
-               | DO BLOCK_OPEN block BLOCK_CLOSE WHILE PAREN_OPEN expression PAREN_CLOSE SEMICOL     { 
-                                                                                            if($7->type != TYPE_BOOL)
+               | DO code_block WHILE PAREN_OPEN expression PAREN_CLOSE SEMICOL     { 
+                                                                                            if($5->type != TYPE_BOOL)
                                                                                                 yyerror("Do-While statement must have a boolean expression");
 
                                                                                             $$ = mknode("DO"); 
-                                                                                            add_child($$, $3); 
-                                                                                            add_child($$, $7); 
+                                                                                            add_child($$, $2); 
+                                                                                            add_child($$, $5); 
                                                                                         }
                | FOR PAREN_OPEN for_init SEMICOL expression SEMICOL variable_assignment PAREN_CLOSE statement_block { 
                                                                                                                                     if($5->type != TYPE_BOOL)
@@ -647,7 +649,7 @@ statements: possible_statements { $$ = mknode("STATEMENTS"); add_child($$, $1); 
 declarations: variable_declarations functions_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); add_nodes_to_node($$,$2); }|
               variable_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); } |
               functions_declarations { $$ = mknode("DECLARATIONS"); add_nodes_to_node($$, $1); } |
-              functions_declarations variable_declarations { yyerror("Function declarations must be before variable declarations"); } ;
+              functions_declarations variable_declarations { yyerror("Function declarations must be after variable declarations"); } ;
 
 variable_declarations: possible_variable_declaration SEMICOL { $$ = mknode("VAR_DECS"); add_child($$, $1); } |
                         variable_declarations possible_variable_declaration SEMICOL { add_child($$, $2); } ;
@@ -662,7 +664,7 @@ possible_statements: variable_assignment SEMICOL { $$ = $1; } |
                      loop_statement { $$ = $1; } |
                      if_statement { $$ = $1; } |
                      function_call SEMICOL  { $$ = $1; } |
-                     BLOCK_OPEN block BLOCK_CLOSE { $$ = $2; };
+                     code_block { $$ = $1; };
 
 return_statement: RETURN expression SEMICOL { 
                                                 Type return_type = check_return_required(current_scope);
