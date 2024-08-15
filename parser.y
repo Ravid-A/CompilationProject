@@ -241,8 +241,7 @@ variable_assignment: IDENTIFIER ASS expression {
                      | '*' %prec PTR IDENTIFIER ASS { yyerror("missing value for assignment."); }
                      | IDENTIFIER INDEX_OPEN expression INDEX_CLOSE ASS { yyerror("missing value for assignment."); }
                      | IDENTIFIER INDEX_OPEN INDEX_CLOSE ASS expression { yyerror("Index must be provided"); }
-                     | ASS expression { yyerror("missing variable indetifier"); } 
-                     | expression ASS expression { yyerror("cannot assign value to an expression."); };
+                     | ASS expression { yyerror("missing variable indetifier"); } ;
 
 string_declaration: STRING string_id_declaration    {
                                                         add_string_variables(current_scope, $2);
