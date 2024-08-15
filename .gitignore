@@ -17,3 +17,6 @@ code.asm
 
 *.pdf
 part*/
+
+*.3ac
+*.asm
